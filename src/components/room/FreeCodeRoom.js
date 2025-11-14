@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Editor from '@monaco-editor/react';
-
-// --- 1. IMPORT THE RESIZABLE PANELS ---
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import FileTabsBar from './FileTabsBar';
@@ -11,20 +9,46 @@ import OutputPanel from './OutputPanel';
 
 import { useVoiceChat } from '../../hooks/useVoiceChat';
 
-// A small helper component to render the audio
-const AudioPlayer = ({ stream }) => {
+// Improved AudioPlayer component
+const AudioPlayer = ({ stream, peerId }) => {
   const audioRef = useRef(null);
+  
   useEffect(() => {
     if (audioRef.current && stream) {
       audioRef.current.srcObject = stream;
+      audioRef.current.volume = 1.0;
 
-      audioRef.current.play().catch(err => {
-        console.warn("Audio play failed (this is normal on first load):", err);
-      });
-
+      // Attempt to play, with error handling
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log(`Audio playing for peer: ${peerId}`);
+          })
+          .catch(err => {
+            console.warn(`Audio play failed for peer ${peerId}:`, err);
+            // If autoplay is blocked, we might need user interaction
+            // You could show a "Click to enable audio" button here
+          });
+      }
     }
-  }, [stream]);
-  return <audio ref={audioRef} autoPlay playsInline />;
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+      }
+    };
+  }, [stream, peerId]);
+  
+  return (
+    <audio 
+      ref={audioRef} 
+      autoPlay 
+      playsInline
+      style={{ display: 'none' }}
+    />
+  );
 };
 
 const useDebounce = (callback, delay) => {
@@ -62,13 +86,15 @@ const FreeCodeRoom = ({
   const editorRef = useRef(null);
 
   const participantIds = room.participants || [];
-  const { remoteStreams, isMuted, toggleMute, isSpeaking } = useVoiceChat(room.roomId, participantIds, participantIds.join(','));
+  const { remoteStreams, isMuted, toggleMute, isSpeaking } = useVoiceChat(
+    room.roomId, 
+    participantIds
+  );
 
   const debouncedUpdateCode = useDebounce((fileId, code) => {
     updateFileCode(fileId, code);
   }, 100);
 
-  // (All the useEffects and handlers remain the same)
   useEffect(() => {
     if (!activeFileId && files && Object.keys(files).length > 0) {
       const firstFileId = Object.keys(files)[0];
@@ -101,25 +127,21 @@ const FreeCodeRoom = ({
 
   useEffect(() => {
     if (files && activeFileId && !files[activeFileId]) {
-      // The file we were watching was deleted!
       console.warn(`Active file ${activeFileId} was deleted. Switching to a new file.`);
       const remainingFileIds = Object.keys(files);
       
       if (remainingFileIds.length > 0) {
         const newActiveFileId = remainingFileIds[0];
         
-        // Manually set the new file state, just like handleSelectFile
         setFollowingUserId(null); 
         isTyping.current = false;
         setActiveFileId(newActiveFileId);
         setLocalCode(files[newActiveFileId].code);
         
-        // Update presence if currentUser is available
         if (currentUser?.uid) {
           updatePresence(currentUser.uid, newActiveFileId);
         }
       } else {
-        // This shouldn't happen if removeFile logic is correct, but as a fallback:
         setActiveFileId(null);
         setLocalCode(null);
       }
@@ -167,7 +189,6 @@ const FreeCodeRoom = ({
       if (followingUserId) {
         setFollowingUserId(null); 
       }
-      // Do NOT set isTyping.current = true here
     });
     editor.onDidBlurEditorText(() => {
       isTyping.current = false;
@@ -188,8 +209,6 @@ const FreeCodeRoom = ({
     }
     removeFile(fileId);
   };
-  // (End of unchanged logic)
-
 
   if (!files || !activeFileId || !files[activeFileId] || localCode === null) {
     return <div className="min-h-screen bg-gray-900 text-white p-10">Loading files...</div>;
@@ -203,14 +222,12 @@ const FreeCodeRoom = ({
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
 
-      {/* Render the hidden audio players (no change) */}
-      <div style={{ position: 'absolute', top: '-1000px', left: '-1000px' }}>
-        {Object.entries(remoteStreams).map(([peerId, stream]) => (
-          <AudioPlayer key={peerId} stream={stream} />
-        ))}
-      </div>
+      {/* Render audio players for each remote stream */}
+      {Object.entries(remoteStreams).map(([peerId, stream]) => (
+        <AudioPlayer key={peerId} stream={stream} peerId={peerId} />
+      ))}
 
-      {/* Header (no change) */}
+      {/* Header */}
       <div className="flex-shrink-0 bg-gray-800 p-4 shadow-md z-10">
         <h1 className="text-2xl font-bold">{room.roomName}</h1>
       </div>
@@ -227,11 +244,10 @@ const FreeCodeRoom = ({
             language={room.language}
           />
 
-          {/* --- 2. ADD THE RESIZABLE PANEL GROUP --- */}
           <PanelGroup direction="vertical">
             {/* Editor Panel */}
             <Panel defaultSize={70} minSize={20}>
-              <div className="bg-gray-800 h-full"> {/* h-full ensures editor fills panel */}
+              <div className="bg-gray-800 h-full">
                 <Editor
                   height="100%"
                   theme="vs-dark"
@@ -260,11 +276,10 @@ const FreeCodeRoom = ({
               />
             </Panel>
           </PanelGroup>
-          {/* --- END OF CHANGES --- */}
 
         </div>
 
-        {/* Participant Panel (no change) */}
+        {/* Participant Panel */}
         <ParticipantPanel
           room={room}
           presence={presence}
