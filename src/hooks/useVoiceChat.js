@@ -173,7 +173,8 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
             // DO NOT stop the stream here
         };
-    // Re-run this P2P logic when participants change or stream is ready
+        
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, myPeerId, participantIdString, myStream]);
 
 
