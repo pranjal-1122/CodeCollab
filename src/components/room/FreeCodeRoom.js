@@ -94,6 +94,33 @@ const FreeCodeRoom = ({
     }
   }, [followingUserId, presence, files, activeFileId, localCode]); 
 
+  useEffect(() => {
+    if (files && activeFileId && !files[activeFileId]) {
+      // The file we were watching was deleted!
+      console.warn(`Active file ${activeFileId} was deleted. Switching to a new file.`);
+      const remainingFileIds = Object.keys(files);
+      
+      if (remainingFileIds.length > 0) {
+        const newActiveFileId = remainingFileIds[0];
+        
+        // Manually set the new file state, just like handleSelectFile
+        setFollowingUserId(null); 
+        isTyping.current = false;
+        setActiveFileId(newActiveFileId);
+        setLocalCode(files[newActiveFileId].code);
+        
+        // Update presence if currentUser is available
+        if (currentUser?.uid) {
+          updatePresence(currentUser.uid, newActiveFileId);
+        }
+      } else {
+        // This shouldn't happen if removeFile logic is correct, but as a fallback:
+        setActiveFileId(null);
+        setLocalCode(null);
+      }
+    }
+  }, [files, activeFileId, currentUser, updatePresence]);
+
   const handleSelectFile = (fileId) => {
     setFollowingUserId(null); 
     isTyping.current = false;
