@@ -170,38 +170,36 @@ export const useVoiceChat = (roomId, participantIds) => {
 
         getMicrophone();
 
+        // Capture refs INSIDE the effect (not in cleanup)
+        const speakingLoop = speakingLoopRef;
+        const audioContext = audioContextRef;
+        const myStreamRefCurrent = myStreamRef;
+        const remoteAnalysers = remoteAnalyserRefs;
+        const calls = callsRef;
+
         return () => {
             mounted = false;
 
-            // Capture ALL ref values at cleanup time
-            const speakingLoop = speakingLoopRef.current;
-            const audioContext = audioContextRef.current;
-            const myStreamCurrent = myStreamRef.current;
-            const remoteAnalysers = remoteAnalyserRefs.current;
-            const calls = callsRef.current;
-
-            // Cleanup speaking loop
-            if (speakingLoop) {
-                cancelAnimationFrame(speakingLoop);
+            // Use the captured refs
+            if (speakingLoop.current) {
+                cancelAnimationFrame(speakingLoop.current);
             }
 
-            // Cleanup audio context
-            if (audioContext && audioContext.state !== 'closed') {
-                audioContext.close().catch(console.error);
+            if (audioContext.current && audioContext.current.state !== 'closed') {
+                audioContext.current.close().catch(console.error);
             }
 
-            // Cleanup my stream
-            if (myStreamCurrent) {
-                myStreamCurrent.getTracks().forEach(track => {
+            if (myStreamRefCurrent.current) {
+                myStreamRefCurrent.current.getTracks().forEach(track => {
                     track.stop();
                     track.enabled = false;
                 });
-                myStreamRef.current = null;
+                myStreamRefCurrent.current = null;
             }
 
             // Cleanup all remote analysers
-            Object.keys(remoteAnalysers).forEach(peerId => {
-                const refs = remoteAnalysers[peerId];
+            Object.keys(remoteAnalysers.current).forEach(peerId => {
+                const refs = remoteAnalysers.current[peerId];
                 if (refs) {
                     if (refs.animFrameId) {
                         cancelAnimationFrame(refs.animFrameId);
@@ -216,19 +214,19 @@ export const useVoiceChat = (roomId, participantIds) => {
                             // Already disconnected
                         }
                     }
-                    delete remoteAnalysers[peerId];
+                    delete remoteAnalysers.current[peerId];
                 }
             });
 
             // Cleanup all active calls
-            Object.keys(calls).forEach(peerId => {
-                if (calls[peerId]) {
+            Object.keys(calls.current).forEach(peerId => {
+                if (calls.current[peerId]) {
                     try {
-                        calls[peerId].close();
+                        calls.current[peerId].close();
                     } catch (err) {
                         console.error("Error closing call:", err);
                     }
-                    delete calls[peerId];
+                    delete calls.current[peerId];
                 }
             });
         };
@@ -320,20 +318,20 @@ export const useVoiceChat = (roomId, participantIds) => {
             });
         }, 1000);
 
+        // Capture refs INSIDE the effect (before return)
+        const calls = callsRef;
+        const peer = peerRef;
+
         return () => {
             clearTimeout(callTimeout);
 
-            // Capture ref values at cleanup time
-            const calls = callsRef.current;
-            const peer = peerRef.current;
-
-            Object.keys(calls).forEach(peerId => {
+            Object.keys(calls.current).forEach(peerId => {
                 cleanupCall(peerId);
             });
 
-            if (peer) {
-                peer.destroy();
-                peerRef.current = null;
+            if (peer.current) {
+                peer.current.destroy();
+                peer.current = null;
             }
         };
 
