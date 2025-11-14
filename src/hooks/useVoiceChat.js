@@ -25,8 +25,57 @@ export const useVoiceChat = (roomId, participantIds) => {
     // Store remote analysers to clean them up
     const remoteAnalyserRefs = useRef({});
 
+    // Helper to clean up a remote analyser
+    const cleanupRemoteAnalyser = useCallback((peerId) => {
+        const refs = remoteAnalyserRefs.current[peerId];
+        if (refs) {
+            cancelAnimationFrame(refs.animFrameId.id);
+            if (refs.context.state !== 'closed') {
+                refs.context.close().catch(console.error);
+            }
+            if (refs.source) {
+                refs.source.disconnect();
+            }
+            setIsSpeaking(prev => {
+                const speaking = { ...prev };
+                delete speaking[peerId];
+                return speaking;
+            });
+            delete remoteAnalyserRefs.current[peerId];
+        }
+    }, []);
+
+    // Helper to cleanup a specific call
+    const cleanupCall = useCallback((peerId) => {
+        const callsRefCurrent = callsRef.current;
+        if (callsRefCurrent[peerId]) {
+            try {
+                callsRefCurrent[peerId].close();
+            } catch (err) {
+                console.error("Error closing call:", err);
+            }
+            delete callsRefCurrent[peerId];
+        }
+        
+        // Clean up remote stream
+        setRemoteStreams(prev => {
+            const streams = { ...prev };
+            if (streams[peerId]) {
+                // Stop all tracks in the remote stream
+                streams[peerId].getTracks().forEach(track => {
+                    track.stop();
+                });
+                delete streams[peerId];
+            }
+            return streams;
+        });
+        
+        // Clean up analyser
+        cleanupRemoteAnalyser(peerId);
+    }, [cleanupRemoteAnalyser]);
+
     // Helper to create remote analysers
-    const setupRemoteAnalyser = (stream, peerId) => {
+    const setupRemoteAnalyser = useCallback((stream, peerId) => {
         try {
             const remoteAudioContext = new (window.AudioContext || window.webkitAudioContext)();
             const remoteAnalyser = remoteAudioContext.createAnalyser();
@@ -57,55 +106,7 @@ export const useVoiceChat = (roomId, participantIds) => {
         } catch (err) {
             console.error("Error setting up remote analyser:", err);
         }
-    };
-
-    // Helper to clean up a remote analyser
-    const cleanupRemoteAnalyser = useCallback((peerId) => {
-        const refs = remoteAnalyserRefs.current[peerId];
-        if (refs) {
-            cancelAnimationFrame(refs.animFrameId.id);
-            if (refs.context.state !== 'closed') {
-                refs.context.close().catch(console.error);
-            }
-            if (refs.source) {
-                refs.source.disconnect();
-            }
-            setIsSpeaking(prev => {
-                const speaking = { ...prev };
-                delete speaking[peerId];
-                return speaking;
-            });
-            delete remoteAnalyserRefs.current[peerId];
-        }
     }, []);
-
-    // Helper to cleanup a specific call
-    const cleanupCall = useCallback((peerId) => {
-        if (callsRef.current[peerId]) {
-            try {
-                callsRef.current[peerId].close();
-            } catch (err) {
-                console.error("Error closing call:", err);
-            }
-            delete callsRef.current[peerId];
-        }
-        
-        // Clean up remote stream
-        setRemoteStreams(prev => {
-            const streams = { ...prev };
-            if (streams[peerId]) {
-                // Stop all tracks in the remote stream
-                streams[peerId].getTracks().forEach(track => {
-                    track.stop();
-                });
-                delete streams[peerId];
-            }
-            return streams;
-        });
-        
-        // Clean up analyser
-        cleanupRemoteAnalyser(peerId);
-    }, [cleanupRemoteAnalyser]);
 
     // EFFECT 1: Get Mic Stream (runs ONCE)
     useEffect(() => {
@@ -176,15 +177,34 @@ export const useVoiceChat = (roomId, participantIds) => {
             
             // Cleanup all remote analysers on unmount
             const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
-            analysersToCleanup.forEach(cleanupRemoteAnalyser);
+            analysersToCleanup.forEach(peerId => {
+                const refs = remoteAnalyserRefs.current[peerId];
+                if (refs) {
+                    cancelAnimationFrame(refs.animFrameId.id);
+                    if (refs.context.state !== 'closed') {
+                        refs.context.close().catch(console.error);
+                    }
+                    if (refs.source) {
+                        refs.source.disconnect();
+                    }
+                    delete remoteAnalyserRefs.current[peerId];
+                }
+            });
             
             // Cleanup all active calls
             const callsToCleanup = Object.keys(callsRef.current);
-            callsToCleanup.forEach(cleanupCall);
+            callsToCleanup.forEach(peerId => {
+                if (callsRef.current[peerId]) {
+                    try {
+                        callsRef.current[peerId].close();
+                    } catch (err) {
+                        console.error("Error closing call:", err);
+                    }
+                    delete callsRef.current[peerId];
+                }
+            });
         };
-    }, [myPeerId, cleanupRemoteAnalyser, cleanupCall]); 
-
-    const participantIdString = participantIds.join(',');
+    }, [myPeerId]);
 
     // EFFECT 2: Manage PeerJS Connections
     useEffect(() => {
@@ -285,7 +305,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
         };
         
-    }, [roomId, myPeerId, participantIdString, myStream, cleanupCall]);
+    }, [roomId, myPeerId, myStream, participantIds, cleanupCall, setupRemoteAnalyser]);
 
     // Mute/Unmute Function
     const toggleMute = useCallback(() => {
