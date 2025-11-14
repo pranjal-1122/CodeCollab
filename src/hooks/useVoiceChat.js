@@ -188,10 +188,10 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
 
             // Cleanup all remote analysers
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
+            const remoteAnalyserRefsSnapshot = remoteAnalyserRefs.current;
+            const analysersToCleanup = Object.keys(remoteAnalyserRefsSnapshot);
             analysersToCleanup.forEach(peerId => {
-                const refs = remoteAnalyserRefs.current[peerId];
+                const refs = remoteAnalyserRefsSnapshot[peerId];
                 if (refs) {
                     if (refs.animFrameId) {
                         cancelAnimationFrame(refs.animFrameId);
@@ -206,21 +206,21 @@ export const useVoiceChat = (roomId, participantIds) => {
                             // Already disconnected
                         }
                     }
-                    delete remoteAnalyserRefs.current[peerId];
+                    delete remoteAnalyserRefsSnapshot[peerId];
                 }
             });
 
             // Cleanup all active calls
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const callsToCleanup = Object.keys(callsRef.current);
+            const callsRefSnapshot = callsRef.current;
+            const callsToCleanup = Object.keys(callsRefSnapshot);
             callsToCleanup.forEach(peerId => {
-                if (callsRef.current[peerId]) {
+                if (callsRefSnapshot[peerId]) {
                     try {
-                        callsRef.current[peerId].close();
+                        callsRefSnapshot[peerId].close();
                     } catch (err) {
                         console.error("Error closing call:", err);
                     }
-                    delete callsRef.current[peerId];
+                    delete callsRefSnapshot[peerId];
                 }
             });
         };
@@ -314,8 +314,8 @@ export const useVoiceChat = (roomId, participantIds) => {
         return () => {
             clearTimeout(callTimeout);
 
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const activeCalls = Object.keys(callsRef.current);
+            const callsRefSnapshot = callsRef.current;
+            const activeCalls = Object.keys(callsRefSnapshot);
             activeCalls.forEach(peerId => {
                 cleanupCall(peerId);
             });
