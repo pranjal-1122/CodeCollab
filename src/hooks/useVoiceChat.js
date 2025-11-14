@@ -60,7 +60,7 @@ export const useVoiceChat = (roomId, participantIds) => {
     };
 
     // Helper to clean up a remote analyser
-    const cleanupRemoteAnalyser = (peerId) => {
+    const cleanupRemoteAnalyser = useCallback((peerId) => {
         const refs = remoteAnalyserRefs.current[peerId];
         if (refs) {
             cancelAnimationFrame(refs.animFrameId.id);
@@ -77,10 +77,10 @@ export const useVoiceChat = (roomId, participantIds) => {
             });
             delete remoteAnalyserRefs.current[peerId];
         }
-    };
+    }, []);
 
     // Helper to cleanup a specific call
-    const cleanupCall = (peerId) => {
+    const cleanupCall = useCallback((peerId) => {
         if (callsRef.current[peerId]) {
             try {
                 callsRef.current[peerId].close();
@@ -105,7 +105,7 @@ export const useVoiceChat = (roomId, participantIds) => {
         
         // Clean up analyser
         cleanupRemoteAnalyser(peerId);
-    };
+    }, [cleanupRemoteAnalyser]);
 
     // EFFECT 1: Get Mic Stream (runs ONCE)
     useEffect(() => {
@@ -175,12 +175,14 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
             
             // Cleanup all remote analysers on unmount
-            Object.keys(remoteAnalyserRefs.current).forEach(cleanupRemoteAnalyser);
+            const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
+            analysersToCleanup.forEach(cleanupRemoteAnalyser);
             
             // Cleanup all active calls
-            Object.keys(callsRef.current).forEach(cleanupCall);
+            const callsToCleanup = Object.keys(callsRef.current);
+            callsToCleanup.forEach(cleanupCall);
         };
-    }, [myPeerId]); 
+    }, [myPeerId, cleanupRemoteAnalyser, cleanupCall]); 
 
     const participantIdString = participantIds.join(',');
 
@@ -272,7 +274,8 @@ export const useVoiceChat = (roomId, participantIds) => {
             clearTimeout(callTimeout);
             
             // Close all active calls
-            Object.keys(callsRef.current).forEach(peerId => {
+            const activeCalls = Object.keys(callsRef.current);
+            activeCalls.forEach(peerId => {
                 cleanupCall(peerId);
             });
             
@@ -282,7 +285,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
         };
         
-    }, [roomId, myPeerId, participantIdString, myStream]);
+    }, [roomId, myPeerId, participantIdString, myStream, cleanupCall]);
 
     // Mute/Unmute Function
     const toggleMute = useCallback(() => {

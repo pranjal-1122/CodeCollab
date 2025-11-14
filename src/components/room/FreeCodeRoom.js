@@ -14,12 +14,14 @@ const AudioPlayer = ({ stream, peerId }) => {
   const audioRef = useRef(null);
   
   useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-      audioRef.current.volume = 1.0;
+    const audio = audioRef.current;
+    
+    if (audio && stream) {
+      audio.srcObject = stream;
+      audio.volume = 1.0;
 
       // Attempt to play, with error handling
-      const playPromise = audioRef.current.play();
+      const playPromise = audio.play();
       
       if (playPromise !== undefined) {
         playPromise
@@ -35,8 +37,8 @@ const AudioPlayer = ({ stream, peerId }) => {
     }
     
     return () => {
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
+      if (audio) {
+        audio.srcObject = null;
       }
     };
   }, [stream, peerId]);
