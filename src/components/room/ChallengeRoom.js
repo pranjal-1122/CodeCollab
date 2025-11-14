@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { firestore, db } from '../../services/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { ref, onValue } from 'firebase/database';
 
 // Imports are all correct

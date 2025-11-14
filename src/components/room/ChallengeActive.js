@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { firestore, db } from '../../services/firebase';
+import { db } from '../../services/firebase';
 
-import { doc, getDoc } from 'firebase/firestore';
 import { ref, set, get, onValue } from 'firebase/database';
 import Editor from '@monaco-editor/react';
 import { ClockIcon, BellAlertIcon, LightBulbIcon } from '@heroicons/react/24/solid';
