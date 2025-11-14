@@ -173,14 +173,26 @@ export const useVoiceChat = (roomId, participantIds) => {
         return () => {
             mounted = false;
 
-            if (speakingLoopRef.current) {
-                cancelAnimationFrame(speakingLoopRef.current);
+            // Capture ALL ref values at cleanup time
+            const speakingLoop = speakingLoopRef.current;
+            const audioContext = audioContextRef.current;
+            const myStreamCurrent = myStreamRef.current;
+            const remoteAnalysers = remoteAnalyserRefs.current;
+            const calls = callsRef.current;
+
+            // Cleanup speaking loop
+            if (speakingLoop) {
+                cancelAnimationFrame(speakingLoop);
             }
-            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-                audioContextRef.current.close().catch(console.error);
+
+            // Cleanup audio context
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close().catch(console.error);
             }
-            if (myStreamRef.current) {
-                myStreamRef.current.getTracks().forEach(track => {
+
+            // Cleanup my stream
+            if (myStreamCurrent) {
+                myStreamCurrent.getTracks().forEach(track => {
                     track.stop();
                     track.enabled = false;
                 });
@@ -188,10 +200,8 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
 
             // Cleanup all remote analysers
-            const remoteAnalyserRefsSnapshot = remoteAnalyserRefs.current;
-            const analysersToCleanup = Object.keys(remoteAnalyserRefsSnapshot);
-            analysersToCleanup.forEach(peerId => {
-                const refs = remoteAnalyserRefsSnapshot[peerId];
+            Object.keys(remoteAnalysers).forEach(peerId => {
+                const refs = remoteAnalysers[peerId];
                 if (refs) {
                     if (refs.animFrameId) {
                         cancelAnimationFrame(refs.animFrameId);
@@ -206,24 +216,23 @@ export const useVoiceChat = (roomId, participantIds) => {
                             // Already disconnected
                         }
                     }
-                    delete remoteAnalyserRefsSnapshot[peerId];
+                    delete remoteAnalysers[peerId];
                 }
             });
 
             // Cleanup all active calls
-            const callsRefSnapshot = callsRef.current;
-            const callsToCleanup = Object.keys(callsRefSnapshot);
-            callsToCleanup.forEach(peerId => {
-                if (callsRefSnapshot[peerId]) {
+            Object.keys(calls).forEach(peerId => {
+                if (calls[peerId]) {
                     try {
-                        callsRefSnapshot[peerId].close();
+                        calls[peerId].close();
                     } catch (err) {
                         console.error("Error closing call:", err);
                     }
-                    delete callsRefSnapshot[peerId];
+                    delete calls[peerId];
                 }
             });
         };
+
     }, [roomId, myPeerId, isMuted]);
 
     // ==================== EFFECT 2: PEERJS CONNECTIONS ====================
@@ -314,14 +323,16 @@ export const useVoiceChat = (roomId, participantIds) => {
         return () => {
             clearTimeout(callTimeout);
 
-            const callsRefSnapshot = callsRef.current;
-            const activeCalls = Object.keys(callsRefSnapshot);
-            activeCalls.forEach(peerId => {
+            // Capture ref values at cleanup time
+            const calls = callsRef.current;
+            const peer = peerRef.current;
+
+            Object.keys(calls).forEach(peerId => {
                 cleanupCall(peerId);
             });
 
-            if (peerRef.current) {
-                peerRef.current.destroy();
+            if (peer) {
+                peer.destroy();
                 peerRef.current = null;
             }
         };
