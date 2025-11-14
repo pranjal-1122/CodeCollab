@@ -51,7 +51,7 @@ const ParticipantPanel = ({
 
                     // This logic is now correct
                     const isOnline = presence && presence[p.uid] !== undefined && presence[p.uid] !== null;
-                    const speaking = isCurrentUser && isSpeaking && !isMuted;
+                    const speaking = isSpeaking[p.uid] && (isCurrentUser ? !isMuted : true);
 
                     return (
                         <div

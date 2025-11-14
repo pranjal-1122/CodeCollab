@@ -135,7 +135,7 @@ const FreeCodeRoom = ({
       if (followingUserId) {
         setFollowingUserId(null); 
       }
-      isTyping.current = true;
+      // Do NOT set isTyping.current = true here
     });
     editor.onDidBlurEditorText(() => {
       isTyping.current = false;
@@ -172,7 +172,7 @@ const FreeCodeRoom = ({
     <div className="flex flex-col h-screen bg-gray-900 text-white">
 
       {/* Render the hidden audio players (no change) */}
-      <div style={{ display: 'none' }}>
+      <div style={{ position: 'absolute', top: '-1000px', left: '-1000px' }}>
         {Object.entries(remoteStreams).map(([peerId, stream]) => (
           <AudioPlayer key={peerId} stream={stream} />
         ))}

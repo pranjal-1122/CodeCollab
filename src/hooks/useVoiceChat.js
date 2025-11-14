@@ -8,23 +8,27 @@ export const useVoiceChat = (roomId, participantIds) => {
     // State
     const [myStream, setMyStream] = useState(null);
     const [isMuted, setIsMuted] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState({});
     const [remoteStreams, setRemoteStreams] = useState({});
 
     // Refs
     const myPeerId = currentUser.uid;
-    const peerRef = useRef(null); 
+    const peerRef = useRef(null);
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
     const dataArrayRef = useRef(null);
     const speakingLoopRef = useRef(null);
 
-    // 1. Main Effect to Initialize Mic and PeerJS
+    // --- (This ref is also for Bug 4) ---
+    const myStreamRef = useRef(null);
+
+    // --- NEW EFFECT 1: Get Mic Stream (runs ONCE) ---
     useEffect(() => {
-        // Get microphone permissions
+        // This effect runs ONCE to get the mic
         navigator.mediaDevices.getUserMedia({ audio: true, video: false })
             .then(stream => {
-                setMyStream(stream);
+                setMyStream(stream); // Set state to trigger Effect 2
+                myStreamRef.current = stream; // Save to ref for cleanup
 
                 // --- Audio Analysis Logic ---
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -42,83 +46,94 @@ export const useVoiceChat = (roomId, participantIds) => {
                         analyserRef.current.getByteFrequencyData(dataArrayRef.current);
                         let sum = dataArrayRef.current.reduce((a, b) => a + b, 0);
                         let avg = sum / dataArrayRef.current.length;
-                        setIsSpeaking(avg > 20); // Speaking threshold
+                        setIsSpeaking(prev => ({ ...prev, [myPeerId]: avg > 20 })); // Use the object from Bug 2 fix
                     }
                     speakingLoopRef.current = requestAnimationFrame(checkSpeaking);
                 };
                 checkSpeaking();
                 // --- End Audio Analysis ---
-
-                // --- Initialize PeerJS AND Call Logic ---
-                const newPeer = new Peer(myPeerId, {
-                    host: '0.peerjs.com', port: 443, path: '/peerjs', secure: true,
-                });
-                peerRef.current = newPeer;
-
-                // a. Set up listener for INCOMING calls
-                newPeer.on('call', (call) => {
-                    call.answer(stream); // Answer with our stream
-                    call.on('stream', (remoteStream) => {
-                        setRemoteStreams(prev => ({ ...prev, [call.peer]: remoteStream }));
-                    });
-                    call.on('close', () => {
-                        setRemoteStreams(prev => {
-                            const streams = { ...prev };
-                            delete streams[call.peer];
-                            return streams;
-                        });
-                    });
-                });
-
-                // b. Call all OTHER participants
-                participantIds.forEach(peerId => {
-                    if (peerId !== myPeerId) {
-                        console.log(`Calling peer: ${peerId}`);
-                        const call = newPeer.call(peerId, stream);
-                        if (call) {
-                            call.on('stream', (remoteStream) => {
-                                setRemoteStreams(prev => ({ ...prev, [peerId]: remoteStream }));
-                            });
-                            call.on('close', () => {
-                                setRemoteStreams(prev => {
-                                    const streams = { ...prev };
-                                    delete streams[peerId];
-                                    return streams;
-                                });
-                            });
-                        }
-                    }
-                });
-
             })
             .catch(err => {
                 console.error("Failed to get mic permissions:", err);
             });
 
-        // --- 3. Cleanup Function ---
+        // --- Cleanup for THIS effect (runs on FINAL unmount) ---
         return () => {
             if (speakingLoopRef.current) {
                 cancelAnimationFrame(speakingLoopRef.current);
-                speakingLoopRef.current = null; // Clear the ref
+                speakingLoopRef.current = null;
             }
-            
-            // --- THIS IS THE FIX ---
-            // Check the state before trying to close.
             if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
                 audioContextRef.current.close();
             }
-            // ---------------------
-
-            if (myStream) {
-                myStream.getTracks().forEach(track => track.stop());
-            }
-            if (peerRef.current) {
-                peerRef.current.destroy();
-                peerRef.current = null; // Clear the ref
+            // Stop the mic track
+            if (myStreamRef.current) {
+                myStreamRef.current.getTracks().forEach(track => track.stop());
+                myStreamRef.current = null;
             }
         };
-    // Re-run this ENTIRE effect if the participant list changes
-    }, [roomId, myPeerId, participantIds.join(',')]);
+    }, [myPeerId]); // <-- Runs once (myPeerId is static)
+
+    // --- NEW EFFECT 2: Manage PeerJS Connections ---
+    useEffect(() => {
+        // Wait for the stream to be ready
+        if (!myStream) {
+            return;
+        }
+
+        // --- Initialize PeerJS AND Call Logic ---
+        const newPeer = new Peer(myPeerId, {
+            host: '0.peerjs.com', port: 443, path: '/peerjs', secure: true,
+        });
+        peerRef.current = newPeer;
+
+        // a. Set up listener for INCOMING calls
+        newPeer.on('call', (call) => {
+            call.answer(myStream); // Answer with our stream
+            call.on('stream', (remoteStream) => {
+                setRemoteStreams(prev => ({ ...prev, [call.peer]: remoteStream }));
+                // ... (Add analyser logic from Bug 2 here) ...
+            });
+            call.on('close', () => {
+                setRemoteStreams(prev => {
+                    const streams = { ...prev };
+                    delete streams[call.peer];
+                    return streams;
+                });
+            });
+        });
+
+        // b. Call all OTHER participants
+        participantIds.forEach(peerId => {
+            if (peerId !== myPeerId) {
+                console.log(`Calling peer: ${peerId}`);
+                const call = newPeer.call(peerId, myStream);
+                if (call) {
+                    call.on('stream', (remoteStream) => {
+                        setRemoteStreams(prev => ({ ...prev, [peerId]: remoteStream }));
+                    });
+                    call.on('close', () => {
+                        setRemoteStreams(prev => {
+                            const streams = { ...prev };
+                            delete streams[peerId];
+                            return streams;
+                        });
+                    });
+                }
+            }
+        });
+        
+        // --- Cleanup for THIS effect (runs on participant change) ---
+        return () => {
+            if (peerRef.current) {
+                peerRef.current.destroy();
+                peerRef.current = null;
+            }
+            // DO NOT stop the stream here
+        };
+    // Re-run this P2P logic when participants change or stream is ready
+    }, [roomId, myPeerId, participantIds.join(','), myStream]);
+    
 
     // --- 4. Mute/Unmute Function (wrapped in useCallback) ---
     const toggleMute = useCallback(() => {
@@ -131,7 +146,7 @@ export const useVoiceChat = (roomId, participantIds) => {
                 return newMuteState;
             });
         }
-    }, [myStream]); 
+    }, [myStream]);
 
     return { remoteStreams, isMuted, toggleMute, isSpeaking };
 };
