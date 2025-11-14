@@ -48,7 +48,7 @@ const AudioPlayer = ({ stream, peerId }) => {
       ref={audioRef} 
       autoPlay 
       playsInline
-      style={{ display: 'none' }}
+      style={{ position: 'absolute', top: '-1000px', left: '-1000px' }}
     />
   );
 };

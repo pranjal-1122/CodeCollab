@@ -176,6 +176,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
             
             // Cleanup all remote analysers on unmount
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
             analysersToCleanup.forEach(peerId => {
                 const refs = remoteAnalyserRefs.current[peerId];
@@ -192,6 +193,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             });
             
             // Cleanup all active calls
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             const callsToCleanup = Object.keys(callsRef.current);
             callsToCleanup.forEach(peerId => {
                 if (callsRef.current[peerId]) {
@@ -294,6 +296,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             clearTimeout(callTimeout);
             
             // Close all active calls
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             const activeCalls = Object.keys(callsRef.current);
             activeCalls.forEach(peerId => {
                 cleanupCall(peerId);
