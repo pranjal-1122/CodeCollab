@@ -120,6 +120,7 @@ export const useVoiceChat = (roomId, participantIds) => {
                 myStreamRef.current = null;
             }
             // --- Cleanup all remote analysers on unmount ---
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             Object.keys(remoteAnalyserRefs.current).forEach(cleanupRemoteAnalyser);
         };
     }, [myPeerId]); 
