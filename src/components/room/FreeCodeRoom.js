@@ -17,6 +17,11 @@ const AudioPlayer = ({ stream }) => {
   useEffect(() => {
     if (audioRef.current && stream) {
       audioRef.current.srcObject = stream;
+
+      audioRef.current.play().catch(err => {
+        console.warn("Audio play failed (this is normal on first load):", err);
+      });
+
     }
   }, [stream]);
   return <audio ref={audioRef} autoPlay playsInline />;
