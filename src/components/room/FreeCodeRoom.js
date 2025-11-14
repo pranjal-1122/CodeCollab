@@ -9,49 +9,6 @@ import OutputPanel from './OutputPanel';
 
 import { useVoiceChat } from '../../hooks/useVoiceChat';
 
-// Improved AudioPlayer component
-const AudioPlayer = ({ stream, peerId }) => {
-  const audioRef = useRef(null);
-  
-  useEffect(() => {
-    const audio = audioRef.current;
-    
-    if (audio && stream) {
-      audio.srcObject = stream;
-      audio.volume = 1.0;
-
-      // Attempt to play, with error handling
-      const playPromise = audio.play();
-      
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log(`Audio playing for peer: ${peerId}`);
-          })
-          .catch(err => {
-            console.warn(`Audio play failed for peer ${peerId}:`, err);
-            // If autoplay is blocked, we might need user interaction
-            // You could show a "Click to enable audio" button here
-          });
-      }
-    }
-    
-    return () => {
-      if (audio) {
-        audio.srcObject = null;
-      }
-    };
-  }, [stream, peerId]);
-  
-  return (
-    <audio 
-      ref={audioRef} 
-      autoPlay 
-      playsInline
-      style={{ position: 'absolute', top: '-1000px', left: '-1000px' }}
-    />
-  );
-};
 
 const useDebounce = (callback, delay) => {
   const [timeoutId, setTimeoutId] = useState(null);
