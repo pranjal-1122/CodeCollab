@@ -1,7 +1,9 @@
 // src/hooks/useVoiceChat.js
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import Peer from 'peerjs';
+import SimplePeer from 'simple-peer';
+import { db } from '../services/firebase';
+import { ref, set, onValue, remove, push } from 'firebase/database';
 
 export const useVoiceChat = (roomId, participantIds) => {
     const { currentUser } = useAuth();
@@ -14,13 +16,12 @@ export const useVoiceChat = (roomId, participantIds) => {
 
     // Refs
     const myPeerId = currentUser.uid;
-    const peerRef = useRef(null);
+    const peersRef = useRef({});
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
     const dataArrayRef = useRef(null);
     const speakingLoopRef = useRef(null);
     const myStreamRef = useRef(null);
-    const callsRef = useRef({});
     const remoteAnalyserRefs = useRef({});
 
     // ==================== CLEANUP HELPERS ====================
@@ -50,14 +51,14 @@ export const useVoiceChat = (roomId, participantIds) => {
         }
     }, []);
 
-    const cleanupCall = useCallback((peerId) => {
-        if (callsRef.current[peerId]) {
+    const cleanupPeer = useCallback((peerId) => {
+        if (peersRef.current[peerId]) {
             try {
-                callsRef.current[peerId].close();
+                peersRef.current[peerId].destroy();
             } catch (err) {
-                console.error("Error closing call:", err);
+                console.error("Error destroying peer:", err);
             }
-            delete callsRef.current[peerId];
+            delete peersRef.current[peerId];
         }
 
         setRemoteStreams(prev => {
@@ -151,9 +152,11 @@ export const useVoiceChat = (roomId, participantIds) => {
                     let sum = dataArray.reduce((a, b) => a + b, 0);
                     let avg = sum / dataArray.length;
 
+                    const isCurrentlySpeaking = avg > 20 && !isMuted;
+
                     setIsSpeaking(prev => {
                         const speaking = { ...prev };
-                        speaking[myPeerId] = avg > 20 && !isMuted;
+                        speaking[myPeerId] = isCurrentlySpeaking;
                         return speaking;
                     });
 
@@ -161,26 +164,24 @@ export const useVoiceChat = (roomId, participantIds) => {
                 };
                 checkSpeaking();
 
-                console.log('Microphone initialized successfully');
+                console.log('✅ Microphone initialized');
             } catch (err) {
-                console.error('Failed to get microphone:', err);
+                console.error('❌ Microphone error:', err);
                 alert('Could not access microphone. Please check permissions.');
             }
         };
 
         getMicrophone();
 
-        // Capture refs INSIDE the effect (not in cleanup)
         const speakingLoop = speakingLoopRef;
         const audioContext = audioContextRef;
         const myStreamRefCurrent = myStreamRef;
         const remoteAnalysers = remoteAnalyserRefs;
-        const calls = callsRef;
+        const peers = peersRef;
 
         return () => {
             mounted = false;
 
-            // Use the captured refs
             if (speakingLoop.current) {
                 cancelAnimationFrame(speakingLoop.current);
             }
@@ -197,7 +198,6 @@ export const useVoiceChat = (roomId, participantIds) => {
                 myStreamRefCurrent.current = null;
             }
 
-            // Cleanup all remote analysers
             Object.keys(remoteAnalysers.current).forEach(peerId => {
                 const refs = remoteAnalysers.current[peerId];
                 if (refs) {
@@ -218,124 +218,209 @@ export const useVoiceChat = (roomId, participantIds) => {
                 }
             });
 
-            // Cleanup all active calls
-            Object.keys(calls.current).forEach(peerId => {
-                if (calls.current[peerId]) {
+            Object.keys(peers.current).forEach(peerId => {
+                if (peers.current[peerId]) {
                     try {
-                        calls.current[peerId].close();
+                        peers.current[peerId].destroy();
                     } catch (err) {
-                        console.error("Error closing call:", err);
+                        console.error("Error destroying peer:", err);
                     }
-                    delete calls.current[peerId];
+                    delete peers.current[peerId];
                 }
             });
         };
 
     }, [roomId, myPeerId, isMuted]);
 
-    // ==================== EFFECT 2: PEERJS CONNECTIONS ====================
+    // ==================== EFFECT 2: SIMPLE-PEER SIGNALING ====================
 
     useEffect(() => {
-        if (!myStream) {
-            return;
-        }
+        if (!myStream || !roomId) return;
 
-        const newPeer = new Peer(myPeerId, {
-            host: '0.peerjs.com',
-            port: 443,
-            path: '/peerjs',
-            secure: true,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            }
-        });
-        peerRef.current = newPeer;
+        console.log('🚀 Setting up WebRTC signaling for:', myPeerId);
 
-        newPeer.on('open', (id) => {
-            console.log('My peer ID is: ' + id);
-        });
+        // Listen for signals from other peers
+        const signalsRef = ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}`);
 
-        newPeer.on('error', (err) => {
-            console.error('PeerJS error:', err);
-        });
+        const unsubscribe = onValue(signalsRef, (snapshot) => {
+            if (!snapshot.exists()) return;
 
-        // Handle INCOMING calls
-        newPeer.on('call', (call) => {
-            console.log('Receiving call from:', call.peer);
-            call.answer(myStream);
-            callsRef.current[call.peer] = call;
+            const signals = snapshot.val();
 
-            call.on('stream', (remoteStream) => {
-                console.log('Received stream from:', call.peer);
-                setRemoteStreams(prev => ({ ...prev, [call.peer]: remoteStream }));
-                setupRemoteAnalyser(remoteStream, call.peer);
-            });
+            Object.entries(signals).forEach(([signalId, data]) => {
+                const { from, signal: signalData, type } = data;
 
-            call.on('close', () => {
-                console.log('Call closed from:', call.peer);
-                cleanupCall(call.peer);
-            });
+                if (from === myPeerId) return; // Skip own signals
 
-            call.on('error', (err) => {
-                console.error('Call error:', err);
-                cleanupCall(call.peer);
-            });
-        });
+                console.log(`📨 Received ${type} from:`, from);
 
-        // Call all OTHER participants
-        const callTimeout = setTimeout(() => {
-            participantIds.forEach(peerId => {
-                if (peerId !== myPeerId && !callsRef.current[peerId]) {
-                    console.log('Calling peer:', peerId);
-                    try {
-                        const call = newPeer.call(peerId, myStream);
-                        if (call) {
-                            callsRef.current[peerId] = call;
+                // Create or get peer
+                if (!peersRef.current[from]) {
+                    console.log('👤 Creating peer for:', from);
 
-                            call.on('stream', (remoteStream) => {
-                                console.log('Received stream from outgoing call:', peerId);
-                                setRemoteStreams(prev => ({ ...prev, [peerId]: remoteStream }));
-                                setupRemoteAnalyser(remoteStream, peerId);
-                            });
-
-                            call.on('close', () => {
-                                console.log('Outgoing call closed:', peerId);
-                                cleanupCall(peerId);
-                            });
-
-                            call.on('error', (err) => {
-                                console.error('Outgoing call error:', err);
-                                cleanupCall(peerId);
-                            });
+                    const peer = new SimplePeer({
+                        initiator: false,
+                        stream: myStream,
+                        trickle: true,
+                        config: {
+                            iceServers: [
+                                { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:stun1.l.google.com:19302' }
+                            ]
                         }
-                    } catch (err) {
-                        console.error('Error calling peer:', peerId, err);
-                    }
+                    });
+
+                    peersRef.current[from] = peer;
+
+                    peer.on('signal', (signal) => {
+                        console.log('📤 Sending signal back to:', from);
+                        const signalRef = push(ref(db, `rooms/${roomId}/webrtcSignals/${from}`));
+                        set(signalRef, {
+                            from: myPeerId,
+                            signal: signal,
+                            type: 'answer',
+                            timestamp: Date.now()
+                        });
+                    });
+
+                    peer.on('stream', (remoteStream) => {
+                        console.log('🎵✅ Got stream from:', from);
+                        setRemoteStreams(prev => ({ ...prev, [from]: remoteStream }));
+                        setupRemoteAnalyser(remoteStream, from);
+                    });
+
+                    peer.on('error', (err) => {
+                        console.error('❌ Peer error:', err.message || err);
+
+                        // Ignore renegotiation errors - they're harmless
+                        if (err.message && err.message.includes('wrong state')) {
+                            console.log('⚠️ Ignoring state error (harmless)');
+                            return;
+                        }
+
+                        // Don't cleanup on minor errors
+                        if (err.code === 'ERR_CONNECTION_FAILURE' ||
+                            err.message?.includes('InvalidStateError')) {
+                            console.log('⚠️ Minor error, keeping connection');
+                            return;
+                        }
+
+                        cleanupPeer(from);
+                    });
+
+                    peer.on('close', () => {
+                        console.log('📴 Peer closed:', from);
+                        // Small delay before cleanup to prevent race conditions
+                        setTimeout(() => {
+                            cleanupPeer(from);
+                        }, 500);
+                    });
+                }
+
+                /// Process the signal
+                try {
+                    peersRef.current[from].signal(signalData);
+
+                    // Remove processed signal
+                    remove(ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}/${signalId}`));
+                } catch (err) {
+                    console.error('❌ Error processing signal:', err);
                 }
             });
-        }, 1000);
-
-        // Capture refs INSIDE the effect (before return)
-        const calls = callsRef;
-        const peer = peerRef;
+        });
 
         return () => {
-            clearTimeout(callTimeout);
-
-            Object.keys(calls.current).forEach(peerId => {
-                cleanupCall(peerId);
-            });
-
-            if (peer.current) {
-                peer.current.destroy();
-                peer.current = null;
-            }
+            unsubscribe();
+            // Cleanup signals
+            remove(ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}`));
         };
 
-    }, [roomId, myPeerId, myStream, participantIds, cleanupCall, setupRemoteAnalyser]);
+    }, [roomId, myPeerId, myStream, cleanupPeer, setupRemoteAnalyser]);
+
+    // ==================== EFFECT 3: INITIATE CONNECTIONS ====================
+
+    useEffect(() => {
+        if (!myStream || !roomId) return;
+
+        console.log('👀 Watching for participants...');
+
+        participantIds.forEach(peerId => {
+            if (peerId === myPeerId) return;
+            if (peersRef.current[peerId]) return;
+
+            // Only initiate if our ID is greater (prevents duplicates)
+            if (myPeerId <= peerId) return;
+
+            console.log('📞 Initiating connection to:', peerId);
+
+            const peer = new SimplePeer({
+                initiator: true,
+                stream: myStream,
+                trickle: true,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
+
+            peersRef.current[peerId] = peer;
+
+            peer.on('signal', (signal) => {
+                console.log('📤 Sending offer to:', peerId);
+                const signalRef = push(ref(db, `rooms/${roomId}/webrtcSignals/${peerId}`));
+                set(signalRef, {
+                    from: myPeerId,
+                    signal: signal,
+                    type: 'offer',
+                    timestamp: Date.now()
+                });
+            });
+
+            peer.on('stream', (remoteStream) => {
+                console.log('🎵✅ Got stream from:', peerId);
+                setRemoteStreams(prev => ({ ...prev, [peerId]: remoteStream }));
+                setupRemoteAnalyser(remoteStream, peerId);
+            });
+
+            peer.on('error', (err) => {
+                console.error('❌ Peer error:', err);
+                cleanupPeer(peerId);
+            });
+
+            peer.on('close', () => {
+                console.log('📴 Peer closed:', peerId);
+                cleanupPeer(peerId);
+            });
+        });
+
+    }, [roomId, myPeerId, myStream, participantIds, cleanupPeer, setupRemoteAnalyser]);
+
+
+    // ==================== EFFECT 4: KEEP CONNECTION ALIVE ====================
+
+    useEffect(() => {
+        if (!roomId || !myPeerId) return;
+
+        // Send periodic heartbeat to keep connection metadata alive
+        const heartbeatRef = ref(db, `rooms/${roomId}/heartbeat/${myPeerId}`);
+
+        const sendHeartbeat = () => {
+            set(heartbeatRef, Date.now());
+        };
+
+        sendHeartbeat(); // Initial heartbeat
+        const interval = setInterval(sendHeartbeat, 5000); // Every 5 seconds
+
+        return () => {
+            clearInterval(interval);
+            remove(heartbeatRef);
+        };
+
+    }, [roomId, myPeerId]);
+
+
 
     // ==================== MUTE/UNMUTE ====================
 
@@ -343,9 +428,14 @@ export const useVoiceChat = (roomId, participantIds) => {
         if (myStreamRef.current) {
             setIsMuted(currentMuteState => {
                 const newMuteState = !currentMuteState;
+
+                // Mute/unmute all audio tracks
                 myStreamRef.current.getAudioTracks().forEach(track => {
                     track.enabled = !newMuteState;
                 });
+
+                console.log(newMuteState ? '🔇 Muted' : '🔊 Unmuted');
+
                 return newMuteState;
             });
         }
