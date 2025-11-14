@@ -24,7 +24,7 @@ export const useVoiceChat = (roomId, participantIds) => {
     const remoteAnalyserRefs = useRef({});
 
     // ==================== CLEANUP HELPERS ====================
-    
+
     const cleanupRemoteAnalyser = useCallback((peerId) => {
         const refs = remoteAnalyserRefs.current[peerId];
         if (refs) {
@@ -59,7 +59,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
             delete callsRef.current[peerId];
         }
-        
+
         setRemoteStreams(prev => {
             const streams = { ...prev };
             if (streams[peerId]) {
@@ -70,7 +70,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             }
             return streams;
         });
-        
+
         cleanupRemoteAnalyser(peerId);
     }, [cleanupRemoteAnalyser]);
 
@@ -84,7 +84,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             const remoteDataArray = new Uint8Array(remoteAnalyser.frequencyBinCount);
             const remoteSource = remoteAudioContext.createMediaStreamSource(stream);
             remoteSource.connect(remoteAnalyser);
-            
+
             let animFrameId = null;
 
             const checkRemoteSpeaking = () => {
@@ -95,7 +95,7 @@ export const useVoiceChat = (roomId, participantIds) => {
                 animFrameId = requestAnimationFrame(checkRemoteSpeaking);
             };
             checkRemoteSpeaking();
-            
+
             remoteAnalyserRefs.current[peerId] = {
                 context: remoteAudioContext,
                 animFrameId: animFrameId,
@@ -109,21 +109,21 @@ export const useVoiceChat = (roomId, participantIds) => {
     }, []);
 
     // ==================== EFFECT 1: GET LOCAL MICROPHONE ====================
-    
+
     useEffect(() => {
         let mounted = true;
 
         const getMicrophone = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
+                const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true
-                    }, 
-                    video: false 
+                    },
+                    video: false
                 });
-                
+
                 if (!mounted) {
                     stream.getTracks().forEach(track => track.stop());
                     return;
@@ -150,13 +150,13 @@ export const useVoiceChat = (roomId, participantIds) => {
                     analyser.getByteFrequencyData(dataArray);
                     let sum = dataArray.reduce((a, b) => a + b, 0);
                     let avg = sum / dataArray.length;
-                    
+
                     setIsSpeaking(prev => {
                         const speaking = { ...prev };
                         speaking[myPeerId] = avg > 20 && !isMuted;
                         return speaking;
                     });
-                    
+
                     speakingLoopRef.current = requestAnimationFrame(checkSpeaking);
                 };
                 checkSpeaking();
@@ -172,7 +172,7 @@ export const useVoiceChat = (roomId, participantIds) => {
 
         return () => {
             mounted = false;
-            
+
             if (speakingLoopRef.current) {
                 cancelAnimationFrame(speakingLoopRef.current);
             }
@@ -186,9 +186,10 @@ export const useVoiceChat = (roomId, participantIds) => {
                 });
                 myStreamRef.current = null;
             }
-            
+
             // Cleanup all remote analysers
-            Object.keys(remoteAnalyserRefs.current).forEach(peerId => {
+            const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
+            analysersToCleanup.forEach(peerId => {
                 const refs = remoteAnalyserRefs.current[peerId];
                 if (refs) {
                     if (refs.animFrameId) {
@@ -207,9 +208,10 @@ export const useVoiceChat = (roomId, participantIds) => {
                     delete remoteAnalyserRefs.current[peerId];
                 }
             });
-            
+
             // Cleanup all active calls
-            Object.keys(callsRef.current).forEach(peerId => {
+            const callsToCleanup = Object.keys(callsRef.current);
+            callsToCleanup.forEach(peerId => {
                 if (callsRef.current[peerId]) {
                     try {
                         callsRef.current[peerId].close();
@@ -223,16 +225,16 @@ export const useVoiceChat = (roomId, participantIds) => {
     }, [roomId, myPeerId, isMuted]);
 
     // ==================== EFFECT 2: PEERJS CONNECTIONS ====================
-    
+
     useEffect(() => {
         if (!myStream) {
             return;
         }
 
         const newPeer = new Peer(myPeerId, {
-            host: '0.peerjs.com', 
-            port: 443, 
-            path: '/peerjs', 
+            host: '0.peerjs.com',
+            port: 443,
+            path: '/peerjs',
             secure: true,
             config: {
                 iceServers: [
@@ -256,7 +258,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             console.log('Receiving call from:', call.peer);
             call.answer(myStream);
             callsRef.current[call.peer] = call;
-            
+
             call.on('stream', (remoteStream) => {
                 console.log('Received stream from:', call.peer);
                 setRemoteStreams(prev => ({ ...prev, [call.peer]: remoteStream }));
@@ -283,13 +285,13 @@ export const useVoiceChat = (roomId, participantIds) => {
                         const call = newPeer.call(peerId, myStream);
                         if (call) {
                             callsRef.current[peerId] = call;
-                            
+
                             call.on('stream', (remoteStream) => {
                                 console.log('Received stream from outgoing call:', peerId);
                                 setRemoteStreams(prev => ({ ...prev, [peerId]: remoteStream }));
                                 setupRemoteAnalyser(remoteStream, peerId);
                             });
-                            
+
                             call.on('close', () => {
                                 console.log('Outgoing call closed:', peerId);
                                 cleanupCall(peerId);
@@ -306,24 +308,25 @@ export const useVoiceChat = (roomId, participantIds) => {
                 }
             });
         }, 1000);
-        
+
         return () => {
             clearTimeout(callTimeout);
-            
-            Object.keys(callsRef.current).forEach(peerId => {
+
+            const activeCalls = Object.keys(callsRef.current);
+            activeCalls.forEach(peerId => {
                 cleanupCall(peerId);
             });
-            
+
             if (peerRef.current) {
                 peerRef.current.destroy();
                 peerRef.current = null;
             }
         };
-        
+
     }, [roomId, myPeerId, myStream, participantIds, cleanupCall, setupRemoteAnalyser]);
 
     // ==================== MUTE/UNMUTE ====================
-    
+
     const toggleMute = useCallback(() => {
         if (myStreamRef.current) {
             setIsMuted(currentMuteState => {
