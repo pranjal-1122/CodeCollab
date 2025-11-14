@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Editor from '@monaco-editor/react';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-
+import AudioPlayer from './AudioPlayer';
 import FileTabsBar from './FileTabsBar';
 import ParticipantPanel from './ParticipantPanel';
 import OutputPanel from './OutputPanel';
