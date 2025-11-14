@@ -108,56 +108,7 @@ export const useVoiceChat = (roomId, participantIds) => {
         }
     }, []);
 
-    // EFFECT 1: Get Mic Stream (runs ONCE)
-    useEffect(() => {
-        let mounted = true;
-        
-        navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }, 
-            video: false 
-        })
-            .then(stream => {
-                if (!mounted) {
-                    stream.getTracks().forEach(track => track.stop());
-                    return;
-                }
-                
-                setMyStream(stream);
-                myStreamRef.current = stream; 
-
-                // Local Audio Analysis
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                audioContextRef.current = audioContext;
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 512;
-                analyserRef.current = analyser;
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                dataArrayRef.current = dataArray;
-                const source = audioContext.createMediaStreamSource(stream);
-                source.connect(analyser);
-
-                const checkSpeaking = () => {
-                    if (analyserRef.current && mounted) {
-                        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-                        let sum = dataArrayRef.current.reduce((a, b) => a + b, 0);
-                        let avg = sum / dataArrayRef.current.length;
-                        setIsSpeaking(prev => ({ ...prev, [myPeerId]: avg > 20 }));
-                    }
-                    if (mounted) {
-                        speakingLoopRef.current = requestAnimationFrame(checkSpeaking);
-                    }
-                };
-                checkSpeaking();
-            })
-            .catch(err => {
-                console.error("Failed to get mic permissions:", err);
-            });
-
-        // Cleanup for THIS effect (runs on FINAL unmount)
+   // Cleanup for THIS effect (runs on FINAL unmount)
         return () => {
             mounted = false;
             
@@ -206,7 +157,6 @@ export const useVoiceChat = (roomId, participantIds) => {
                 }
             });
         };
-    }, [myPeerId]);
 
     // EFFECT 2: Manage PeerJS Connections
     useEffect(() => {
