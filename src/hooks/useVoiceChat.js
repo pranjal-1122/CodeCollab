@@ -20,21 +20,26 @@ export const useVoiceChat = (roomId, participantIds) => {
     const dataArrayRef = useRef(null);
     const speakingLoopRef = useRef(null);
     const myStreamRef = useRef(null);
-    const callsRef = useRef({}); // Track active calls
-    
-    // Store remote analysers to clean them up
+    const callsRef = useRef({});
     const remoteAnalyserRefs = useRef({});
 
-    // Helper to clean up a remote analyser
+    // ==================== CLEANUP HELPERS ====================
+    
     const cleanupRemoteAnalyser = useCallback((peerId) => {
         const refs = remoteAnalyserRefs.current[peerId];
         if (refs) {
-            cancelAnimationFrame(refs.animFrameId.id);
-            if (refs.context.state !== 'closed') {
+            if (refs.animFrameId) {
+                cancelAnimationFrame(refs.animFrameId);
+            }
+            if (refs.context && refs.context.state !== 'closed') {
                 refs.context.close().catch(console.error);
             }
             if (refs.source) {
-                refs.source.disconnect();
+                try {
+                    refs.source.disconnect();
+                } catch (e) {
+                    // Already disconnected
+                }
             }
             setIsSpeaking(prev => {
                 const speaking = { ...prev };
@@ -45,23 +50,19 @@ export const useVoiceChat = (roomId, participantIds) => {
         }
     }, []);
 
-    // Helper to cleanup a specific call
     const cleanupCall = useCallback((peerId) => {
-        const callsRefCurrent = callsRef.current;
-        if (callsRefCurrent[peerId]) {
+        if (callsRef.current[peerId]) {
             try {
-                callsRefCurrent[peerId].close();
+                callsRef.current[peerId].close();
             } catch (err) {
                 console.error("Error closing call:", err);
             }
-            delete callsRefCurrent[peerId];
+            delete callsRef.current[peerId];
         }
         
-        // Clean up remote stream
         setRemoteStreams(prev => {
             const streams = { ...prev };
             if (streams[peerId]) {
-                // Stop all tracks in the remote stream
                 streams[peerId].getTracks().forEach(track => {
                     track.stop();
                 });
@@ -70,11 +71,11 @@ export const useVoiceChat = (roomId, participantIds) => {
             return streams;
         });
         
-        // Clean up analyser
         cleanupRemoteAnalyser(peerId);
     }, [cleanupRemoteAnalyser]);
 
-    // Helper to create remote analysers
+    // ==================== SETUP ANALYSERS ====================
+
     const setupRemoteAnalyser = useCallback((stream, peerId) => {
         try {
             const remoteAudioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -84,21 +85,20 @@ export const useVoiceChat = (roomId, participantIds) => {
             const remoteSource = remoteAudioContext.createMediaStreamSource(stream);
             remoteSource.connect(remoteAnalyser);
             
-            const remoteAnimFrameRef = { id: 0 }; 
+            let animFrameId = null;
 
             const checkRemoteSpeaking = () => {
                 remoteAnalyser.getByteFrequencyData(remoteDataArray);
                 let sum = remoteDataArray.reduce((a, b) => a + b, 0);
                 let avg = sum / remoteDataArray.length;
                 setIsSpeaking(prev => ({ ...prev, [peerId]: avg > 20 }));
-                remoteAnimFrameRef.id = requestAnimationFrame(checkRemoteSpeaking);
+                animFrameId = requestAnimationFrame(checkRemoteSpeaking);
             };
             checkRemoteSpeaking();
             
-            // Store all refs needed for cleanup
             remoteAnalyserRefs.current[peerId] = {
                 context: remoteAudioContext,
-                animFrameId: remoteAnimFrameRef,
+                animFrameId: animFrameId,
                 source: remoteSource,
                 analyser: remoteAnalyser
             };
@@ -108,7 +108,68 @@ export const useVoiceChat = (roomId, participantIds) => {
         }
     }, []);
 
-   // Cleanup for THIS effect (runs on FINAL unmount)
+    // ==================== EFFECT 1: GET LOCAL MICROPHONE ====================
+    
+    useEffect(() => {
+        let mounted = true;
+
+        const getMicrophone = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }, 
+                    video: false 
+                });
+                
+                if (!mounted) {
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+
+                myStreamRef.current = stream;
+                setMyStream(stream);
+
+                // Setup local speaking detection
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 512;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                audioContextRef.current = audioContext;
+                analyserRef.current = analyser;
+                dataArrayRef.current = dataArray;
+
+                const checkSpeaking = () => {
+                    if (!mounted) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = dataArray.reduce((a, b) => a + b, 0);
+                    let avg = sum / dataArray.length;
+                    
+                    setIsSpeaking(prev => {
+                        const speaking = { ...prev };
+                        speaking[myPeerId] = avg > 20 && !isMuted;
+                        return speaking;
+                    });
+                    
+                    speakingLoopRef.current = requestAnimationFrame(checkSpeaking);
+                };
+                checkSpeaking();
+
+                console.log('Microphone initialized successfully');
+            } catch (err) {
+                console.error('Failed to get microphone:', err);
+                alert('Could not access microphone. Please check permissions.');
+            }
+        };
+
+        getMicrophone();
+
         return () => {
             mounted = false;
             
@@ -126,27 +187,29 @@ export const useVoiceChat = (roomId, participantIds) => {
                 myStreamRef.current = null;
             }
             
-            // Cleanup all remote analysers on unmount
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const analysersToCleanup = Object.keys(remoteAnalyserRefs.current);
-            analysersToCleanup.forEach(peerId => {
+            // Cleanup all remote analysers
+            Object.keys(remoteAnalyserRefs.current).forEach(peerId => {
                 const refs = remoteAnalyserRefs.current[peerId];
                 if (refs) {
-                    cancelAnimationFrame(refs.animFrameId.id);
-                    if (refs.context.state !== 'closed') {
+                    if (refs.animFrameId) {
+                        cancelAnimationFrame(refs.animFrameId);
+                    }
+                    if (refs.context && refs.context.state !== 'closed') {
                         refs.context.close().catch(console.error);
                     }
                     if (refs.source) {
-                        refs.source.disconnect();
+                        try {
+                            refs.source.disconnect();
+                        } catch (e) {
+                            // Already disconnected
+                        }
                     }
                     delete remoteAnalyserRefs.current[peerId];
                 }
             });
             
             // Cleanup all active calls
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const callsToCleanup = Object.keys(callsRef.current);
-            callsToCleanup.forEach(peerId => {
+            Object.keys(callsRef.current).forEach(peerId => {
                 if (callsRef.current[peerId]) {
                     try {
                         callsRef.current[peerId].close();
@@ -157,8 +220,10 @@ export const useVoiceChat = (roomId, participantIds) => {
                 }
             });
         };
+    }, [roomId, myPeerId, isMuted]);
 
-    // EFFECT 2: Manage PeerJS Connections
+    // ==================== EFFECT 2: PEERJS CONNECTIONS ====================
+    
     useEffect(() => {
         if (!myStream) {
             return;
@@ -186,7 +251,7 @@ export const useVoiceChat = (roomId, participantIds) => {
             console.error('PeerJS error:', err);
         });
 
-        // Set up listener for INCOMING calls
+        // Handle INCOMING calls
         newPeer.on('call', (call) => {
             console.log('Receiving call from:', call.peer);
             call.answer(myStream);
@@ -212,7 +277,7 @@ export const useVoiceChat = (roomId, participantIds) => {
         // Call all OTHER participants
         const callTimeout = setTimeout(() => {
             participantIds.forEach(peerId => {
-                if (peerId !== myPeerId) {
+                if (peerId !== myPeerId && !callsRef.current[peerId]) {
                     console.log('Calling peer:', peerId);
                     try {
                         const call = newPeer.call(peerId, myStream);
@@ -240,15 +305,12 @@ export const useVoiceChat = (roomId, participantIds) => {
                     }
                 }
             });
-        }, 1000); // Small delay to ensure peer is ready
+        }, 1000);
         
         return () => {
             clearTimeout(callTimeout);
             
-            // Close all active calls
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            const activeCalls = Object.keys(callsRef.current);
-            activeCalls.forEach(peerId => {
+            Object.keys(callsRef.current).forEach(peerId => {
                 cleanupCall(peerId);
             });
             
@@ -260,7 +322,8 @@ export const useVoiceChat = (roomId, participantIds) => {
         
     }, [roomId, myPeerId, myStream, participantIds, cleanupCall, setupRemoteAnalyser]);
 
-    // Mute/Unmute Function
+    // ==================== MUTE/UNMUTE ====================
+    
     const toggleMute = useCallback(() => {
         if (myStreamRef.current) {
             setIsMuted(currentMuteState => {
