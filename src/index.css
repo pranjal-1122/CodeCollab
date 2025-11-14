@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+@tailwind components;
+@tailwind utilities;
+@tailwind base;
+
+/* --- THIS IS THE FIX --- */
+/* Add this layer *after* @tailwind base to fix scrolling */
+@layer base {
+  html, body {
+    overflow-x: hidden;
+  }
+}
+/* --- END OF FIX --- */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ... keep all your @tailwind imports at the top ... */
+
+/* --- Add this code to the bottom --- */
+/* Custom Scrollbar for Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #1f2937; /* bg-gray-800 */
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #4b5563; /* bg-gray-600 */
+  border-radius: 4px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* bg-gray-500 */
+}
+
+.orb-container {
+  position: relative;
+  z-index: 1; /* This is the key: it puts the orb on top of the black background */
+  width: 100%;
+  height: 100%;
+}
+
+.orb-canvas {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
