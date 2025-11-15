@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 // This is the CORRECT "Paper Airplane" icon
 // --- A. New Icon for Sending a Message ---
 const SendIcon = () => (
-  <img src="/icons/send.png" alt="Send" className="w-5 h-5" />
+  <img src="/send.png" alt="Send" className="w-5 h-5" />
 );
 
 // --- B. New Component for a single Chat Message ---

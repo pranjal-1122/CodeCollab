@@ -6,13 +6,13 @@ import AiMentorPanel from './AiMentorPanel';
 
 // (Icons are all unchanged)
 const UserGroupIcon = () => (
-  <img src="/icons/participants.png" alt="Participants" className="w-5 h-5" />
+  <img src="/participants.png" alt="Participants" className="w-5 h-5" />
 );
 const ChatBubbleIcon = () => (
-  <img src="/icons/chat.png" alt="Chat" className="w-5 h-5" />
+  <img src="/chat.png" alt="Chat" className="w-5 h-5" />
 );
 const AiIcon = () => (
-  <img src="/icons/ai-mentor.png" alt="AI Mentor" className="w-5 h-5" />
+  <img src="/ai-mentor.png" alt="AI Mentor" className="w-5 h-5" />
 );
 
 const MicOnIcon = () => <span title="Mic is on">🎤</span>;
