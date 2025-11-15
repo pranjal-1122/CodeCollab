@@ -41,6 +41,11 @@ const FreeCodeRoom = ({
   const [followingUserId, setFollowingUserId] = useState(null);
   const [localCode, setLocalCode] = useState(null);
   
+  // --- 1. ADD NEW AI STATE ---
+  const [aiSuggestions, setAiSuggestions] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  
   const isTyping = useRef(false);
   const editorRef = useRef(null);
 
@@ -54,6 +59,7 @@ const FreeCodeRoom = ({
     updateFileCode(fileId, code);
   }, 100);
 
+  // (This useEffect block is unchanged)
   useEffect(() => {
     if (!activeFileId && files && Object.keys(files).length > 0) {
       const firstFileId = Object.keys(files)[0];
@@ -72,6 +78,7 @@ const FreeCodeRoom = ({
     }
   }, [files, activeFileId, currentUser.uid, updatePresence, followingUserId, localCode]);
 
+  // (This useEffect block is unchanged)
   useEffect(() => {
     if (followingUserId && presence && presence[followingUserId]) {
       const followedFileId = presence[followingUserId].activeFileId;
@@ -84,6 +91,7 @@ const FreeCodeRoom = ({
     }
   }, [followingUserId, presence, files, activeFileId, localCode]); 
 
+  // (This useEffect block is unchanged)
   useEffect(() => {
     if (files && activeFileId && !files[activeFileId]) {
       console.warn(`Active file ${activeFileId} was deleted. Switching to a new file.`);
@@ -107,6 +115,51 @@ const FreeCodeRoom = ({
     }
   }, [files, activeFileId, currentUser, updatePresence]);
 
+  // --- 2. ADD THE AI API CALL HANDLER ---
+  const handleGetAiReview = async () => {
+    // Check for active file
+    if (!activeFileId || !files[activeFileId]) {
+      setAiError("Please select a file to review.");
+      return;
+    }
+
+    // Get the code and language for the API call
+    const code = files[activeFileId].code;
+    const language = room.language;
+
+    // Set loading state
+    setIsAiLoading(true);
+    setAiSuggestions("");
+    setAiError("");
+
+    try {
+      // Call the Vercel API endpoint we created
+      const response = await fetch('/api/getAiCodeReview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, language }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Handle errors from the API (e.g., 400, 500)
+        throw new Error(data.error || 'Something went wrong');
+      }
+
+      // Success! Set the suggestions
+      setAiSuggestions(data.suggestions);
+
+    } catch (err) {
+      console.error("AI review error:", err);
+      setAiError(err.message || "Failed to connect to the AI service.");
+    } finally {
+      // ALWAYS set loading to false when done
+      setIsAiLoading(false);
+    }
+  };
+
+  // (All other handlers are unchanged)
   const handleSelectFile = (fileId) => {
     setFollowingUserId(null); 
     isTyping.current = false;
@@ -169,6 +222,7 @@ const FreeCodeRoom = ({
     removeFile(fileId);
   };
 
+  // (This render logic is unchanged)
   if (!files || !activeFileId || !files[activeFileId] || localCode === null) {
     return <div className="min-h-screen bg-gray-900 text-white p-10">Loading files...</div>;
   }
@@ -181,18 +235,18 @@ const FreeCodeRoom = ({
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
 
-      {/* Render audio players for each remote stream */}
+      {/* (AudioPlayer is unchanged) */}
       {Object.entries(remoteStreams).map(([peerId, stream]) => (
         <AudioPlayer key={peerId} stream={stream} peerId={peerId} />
       ))}
 
-      {/* Header */}
+      {/* (Header is unchanged) */}
       <div className="flex-shrink-0 bg-gray-800 p-4 shadow-md z-10">
         <h1 className="text-2xl font-bold">{room.roomName}</h1>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main Coding Area */}
+        {/* (Main Coding Area is unchanged) */}
         <div className="flex-1 flex flex-col">
           <FileTabsBar
             files={files}
@@ -204,7 +258,6 @@ const FreeCodeRoom = ({
           />
 
           <PanelGroup direction="vertical">
-            {/* Editor Panel */}
             <Panel defaultSize={70} minSize={20}>
               <div className="bg-gray-800 h-full">
                 <Editor
@@ -222,11 +275,7 @@ const FreeCodeRoom = ({
                 />
               </div>
             </Panel>
-
-            {/* Resize Handle */}
             <PanelResizeHandle className="h-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
-
-            {/* Output Panel */}
             <Panel defaultSize={30} minSize={10}>
               <OutputPanel
                 activeFile={{ ...activeFile, code: files[activeFileId].code }} 
@@ -235,10 +284,9 @@ const FreeCodeRoom = ({
               />
             </Panel>
           </PanelGroup>
-
         </div>
 
-        {/* Participant Panel */}
+        {/* --- 3. UPDATE THE PARTICIPANT PANEL PROPS --- */}
         <ParticipantPanel
           room={room}
           presence={presence}
@@ -250,6 +298,12 @@ const FreeCodeRoom = ({
           onToggleMute={toggleMute}
           isSpeaking={isSpeaking} 
           isToggling={isToggling}
+          
+          // --- Pass all the new AI props down ---
+          onGetAiReview={handleGetAiReview}
+          aiSuggestions={aiSuggestions}
+          isAiLoading={isAiLoading}
+          aiError={aiError}
         />
       </div>
     </div>
