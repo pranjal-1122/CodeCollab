@@ -4,9 +4,9 @@ import { db } from '../../services/firebase';
 
 import { ref, set, get, onValue } from 'firebase/database';
 import Editor from '@monaco-editor/react';
-import { ClockIcon, BellAlertIcon, LightBulbIcon } from '@heroicons/react/24/solid';
+// --- 1. REMOVED LightBulbIcon (it's now only in the child panel) ---
+import { ClockIcon, BellAlertIcon } from '@heroicons/react/24/solid';
 
-// This is the import for the resizable panels
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { PISTON_API_URL, getPistonLanguage } from './pistonHelper'; 
@@ -14,88 +14,11 @@ import { generateFullScaffold } from './scaffoldHelper';
 
 import ChallengeOutputPanel from './ChallengeOutputPanel';
 import LiveStandings from './LiveStandings';
+import ProblemStatementPanel from './ProblemStatementPanel'; // <-- IMPORTED
 
-// ProblemStatementPanel component (no change)
-const ProblemStatementPanel = ({ challengeData }) => {
-  const {
-    description,
-    examples = [],
-    constraints = [],
-    followUp,
-    hint
-  } = challengeData || {};
+// (ProblemStatementPanel component is now REMOVED from this file. We'll modify the one in its own file in the next step.)
 
-  const [isHintVisible, setIsHintVisible] = useState(false);
-  
-  const toggleHintVisibility = () => {
-    setIsHintVisible(prev => !prev);
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-gray-800 p-6 overflow-auto border-r border-gray-700">
-      
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-white">Problem Statement</h2>
-        {hint && (
-          <button
-            onClick={toggleHintVisibility}
-            title={isHintVisible ? "Hide hint" : "Show hint"}
-            className={`p-1.5 rounded-full ${
-              isHintVisible 
-                ? 'bg-yellow-400 text-gray-900'
-                : 'bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600'
-            }`}
-          >
-            <LightBulbIcon className="w-5 h-5" />
-          </button>
-        )}
-      </div>
-      
-      <div 
-        className="prose prose-invert prose-pre:bg-gray-700 text-gray-300 mb-6"
-        dangerouslySetInnerHTML={{ __html: description || "<p>Loading problem...</p>" }}
-      />
-
-      {isHintVisible && hint && (
-        <div className="mb-4 p-4 bg-gray-700 rounded-lg border border-yellow-500">
-          <p className="font-semibold text-yellow-400">Hint:</p>
-          <p className="text-gray-300 text-sm" dangerouslySetInnerHTML={{ __html: hint }} />
-        </div>
-      )}
-      
-      {examples.map((ex, index) => (
-        <div key={index} className="mb-4 p-4 bg-gray-700 rounded-lg border border-gray-600">
-          <p className="font-semibold text-white">Example {index + 1}:</p>
-          <div className="bg-gray-800 p-3 rounded-md mt-2 whitespace-pre-wrap text-sm font-mono text-gray-200">
-            <p><strong>Input:</strong> {ex.input}</p>
-            <p><strong>Output:</strong> {ex.output}</p>
-            {ex.explanation && (
-              <p dangerouslySetInnerHTML={{ __html: `<strong>Explanation:</strong> ${ex.explanation}` }} />
-            )}
-          </div>
-        </div>
-      ))}
-      
-      <div className="mb-6">
-        <p className="font-semibold text-white mb-2">Constraints:</p>
-        <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm">
-          {constraints.map((c, index) => (
-            <li key={index} dangerouslySetInnerHTML={{ __html: c }} />
-          ))}
-        </ul>
-      </div>
-      
-      {followUp && (
-        <div>
-          <p className="font-semibold text-white mb-2">Follow-up:</p>
-          <p className="text-gray-300 text-sm">{followUp}</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ... (other helper components like normalizeOutput, formatTime are unchanged) ...
+// ... (normalizeOutput, formatTime, FinalCountdown helpers are unchanged) ...
 const normalizeOutput = (str) => {
   if (typeof str !== 'string') return '';
   return str.replace(/\s/g, ''); 
@@ -131,9 +54,7 @@ const FinalCountdown = ({ firstFinisherTime }) => {
 const ChallengeActive = ({ room, challengeData, isHost }) => {
   const { currentUser, userProfile } = useAuth();
   
-  // All state and logic (useState, useEffects, handleSubmit)
-  // remains EXACTLY THE SAME.
-  // ...
+  // (Existing State is unchanged)
   const [code, setCode] = useState(() => {
     const { language } = room;
     const { functionSignature, functionTemplate, functionName } = challengeData;
@@ -149,6 +70,14 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
   const [hasFinished, setHasFinished] = useState(false);
   const [firstFinisherTime, setFirstFinisherTime] = useState(null);
 
+  // --- 2. ADD NEW HINT STATE ---
+  const [staticHintVisible, setStaticHintVisible] = useState(false);
+  const [aiHints, setAiHints] = useState([]); // Stores AI-generated hints
+  const [timePenalty, setTimePenalty] = useState(0); // In seconds
+  const [isHintLoading, setIsHintLoading] = useState(false);
+  const [hintError, setHintError] = useState(""); // Separate from submitError
+
+  // (Existing useEffects for timer/finishers are unchanged)
   useEffect(() => {
     if (challengeData?.firstFinisherTime) {
       setFirstFinisherTime(challengeData.firstFinisherTime);
@@ -174,11 +103,68 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
     return () => clearInterval(intervalId);
   }, [challengeData, hasFinished]);
 
+  // (handleEditorChange is unchanged)
   const handleEditorChange = (value) => {
     setCode(value);
     setSubmitError("");
   };
 
+  // --- 3. ADD NEW FUNCTION TO GET AI HINT ---
+  const handleGetAiHint = async () => {
+    // Case 1: First click. Just reveal the static hint. No API, no penalty.
+    if (!staticHintVisible) {
+      setStaticHintVisible(true);
+      return;
+    }
+
+    // Case 2: Subsequent clicks. Call the AI for a new hint.
+    setIsHintLoading(true);
+    setHintError("");
+
+    try {
+      // --- A. Assemble all previous hints ---
+      const previousHints = [challengeData.hint]; // Start with the static hint
+      aiHints.forEach(hint => previousHints.push(hint));
+
+      // --- B. Get the language-specific function template ---
+      const lang = room.language.toLowerCase();
+      const functionTemplate = challengeData.functionTemplate?.[lang];
+      
+      if (!functionTemplate) {
+        throw new Error("Could not find function template for this language.");
+      }
+
+      // --- C. Call our new /api/getAiHint endpoint ---
+      const response = await fetch('/api/getAiHint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problemDescription: challengeData.description,
+          functionTemplate: functionTemplate,
+          userCode: code, // The user's current code
+          previousHints: previousHints // Send all past hints
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get hint from AI.');
+      }
+
+      // --- D. Success: Update state ---
+      setAiHints(prev => [...prev, data.newHint]); // Add the new hint
+      setTimePenalty(prev => prev + 30); // Add 30-second penalty
+
+    } catch (err) {
+      console.error("AI hint error:", err);
+      setHintError(err.message || "Failed to get AI hint.");
+    } finally {
+      setIsHintLoading(false);
+    }
+  };
+
+
+  // --- 4. MODIFY handleSubmit TO INCLUDE PENALTY ---
   const handleSubmit = async () => {
     if (isSubmitting || hasFinished) return;
     setIsSubmitting(true);
@@ -188,6 +174,8 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
        console.warn("No hidden test cases found in challengeData.");
     }
     const { language: pistonLang, version, mainFile } = getPistonLanguage(room.language);
+    
+    // (Test case loop is unchanged)
     for (const testCase of hiddenTestCases) {
       const { input, expectedOutput } = testCase;
       const formattedInput = input.replace(/\\n/g, '\n');
@@ -219,45 +207,60 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
         return;
       }
     }
+
+    // --- THIS IS THE MODIFICATION ---
     setHasFinished(true);
     setIsSubmitting(false);
+    
+    const finalTime = elapsedSeconds + timePenalty; // Add penalty to final time
+
     const submissionRef = ref(db, `rooms/${room.roomId}/challenge/submissions/${currentUser.uid}`);
     await set(submissionRef, {
       username: userProfile.username,
       avatar: userProfile.avatar,
-      finishTime: elapsedSeconds,
+      finishTime: finalTime, // <-- SAVE THE PENALIZED TIME
       submittedAt: Date.now(),
     });
+    // --- END OF MODIFICATION ---
+
     const timerRef = ref(db, `rooms/${room.roomId}/challenge/firstFinisherTime`);
     const timerSnap = await get(timerRef);
     if (!timerSnap.exists()) {
       await set(timerRef, Date.now());
     }
   };
-  // ...
-  // --- END of unchanged logic ---
 
 
-  // --- THIS IS THE UPDATED JSX ---
+  // --- 5. MODIFY THE JSX TO PASS PROPS AND SHOW PENALTY ---
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-      {/* Top Header (Unchanged) */}
+      {/* Top Header */}
       <div className="flex-shrink-0 bg-gray-800 p-3 flex justify-between items-center shadow-md z-10">
-        {/* ... (no change) ... */}
         <h1 className="text-xl font-bold">
           Challenge: {challengeData?.problemTitle || "Loading..."}
         </h1>
         {submitError && <p className="text-red-400 text-sm">{submitError}</p>}
         {hasFinished && <p className="text-green-400 text-lg font-bold">🎉 You finished!</p>}
+        
         <div className="flex items-center gap-4">
+          {/* Timer Display */}
           {firstFinisherTime ? (
             <FinalCountdown firstFinisherTime={firstFinisherTime} />
           ) : (
             <span className="flex items-center gap-1 font-mono text-lg">
               <ClockIcon className="w-5 h-5" />
               {formatTime(elapsedSeconds)}
+              
+              {/* --- ADD PENALTY DISPLAY --- */}
+              {timePenalty > 0 && (
+                <span className="text-yellow-400 text-sm ml-1" title="Time penalty for hints">
+                  + {formatTime(timePenalty)}
+                </span>
+              )}
             </span>
           )}
+          
+          {/* Submit Button (unchanged) */}
           <button 
             onClick={handleSubmit}
             disabled={isSubmitting || hasFinished}
@@ -273,24 +276,27 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        
-        {/* Horizontal PanelGroup (no change) */}
         <PanelGroup direction="horizontal">
           
           <Panel defaultSize={35} minSize={20}>
-            <ProblemStatementPanel challengeData={challengeData} />
+            {/* --- PASS ALL NEW PROPS TO THE PANEL --- */}
+            <ProblemStatementPanel 
+              challengeData={challengeData}
+              onGetHint={handleGetAiHint}
+              staticHintVisible={staticHintVisible}
+              aiHints={aiHints}
+              isHintLoading={isHintLoading}
+              hintError={hintError}
+            />
           </Panel>
 
           <PanelResizeHandle className="w-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
 
-          {/* --- 1. THIS IS THE MODIFIED MIDDLE PANEL --- */}
+          {/* (Rest of the panels are unchanged) */}
           <Panel defaultSize={50} minSize={30}>
-            {/* We've replaced the flex-col div with a vertical PanelGroup */}
             <PanelGroup direction="vertical">
-              
-              {/* Panel 1: Editor */}
               <Panel defaultSize={70} minSize={20}>
-                <div className="bg-gray-800 h-full"> {/* h-full is crucial */}
+                <div className="bg-gray-800 h-full">
                   <Editor
                     height="100%"
                     theme="vs-dark"
@@ -306,11 +312,7 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
                   />
                 </div>
               </Panel>
-
-              {/* Resize Handle */}
               <PanelResizeHandle className="h-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
-
-              {/* Panel 2: Terminal */}
               <Panel defaultSize={30} minSize={10}>
                 <ChallengeOutputPanel
                   code={code}
@@ -318,10 +320,8 @@ const ChallengeActive = ({ room, challengeData, isHost }) => {
                   sampleTestCases={challengeData?.sampleTestCases || []}
                 />
               </Panel>
-
             </PanelGroup>
           </Panel>
-          {/* --- END OF MODIFICATION --- */}
           
           <PanelResizeHandle className="w-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
 
