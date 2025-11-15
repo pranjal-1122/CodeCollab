@@ -6,6 +6,7 @@ import ChatMessageBox from './ChatMessageBox';
 const MicOnIcon = () => <span title="Mic is on">🎤</span>;
 const MicOffIcon = () => <span title="Mic is muted">🔇</span>;
 
+
 const ParticipantPanel = ({
   room,
   presence,
@@ -15,7 +16,8 @@ const ParticipantPanel = ({
   onSendMessage,
   isMuted,
   onToggleMute,
-  isSpeaking
+  isSpeaking,
+  isToggling
 }) => {
   const { currentUser, userProfile } = useAuth();
   const [message, setMessage] = useState("");
@@ -88,10 +90,11 @@ const ParticipantPanel = ({
       <div className="mb-4">
         <button
           onClick={onToggleMute}
+          disabled={isToggling}
           className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold ${isMuted
               ? 'bg-red-600 hover:bg-red-700'
               : 'bg-gray-700 hover:bg-gray-600'
-            }`}
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isMuted ? <MicOffIcon /> : <MicOnIcon />}
           {isMuted ? 'Unmute' : 'Mute'}

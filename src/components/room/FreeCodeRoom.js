@@ -45,7 +45,7 @@ const FreeCodeRoom = ({
   const editorRef = useRef(null);
 
   const participantIds = room.participants || [];
-  const { remoteStreams, isMuted, toggleMute, isSpeaking } = useVoiceChat(
+  const { remoteStreams, isMuted, toggleMute, isSpeaking, isToggling } = useVoiceChat(
     room.roomId, 
     participantIds
   );
@@ -249,6 +249,7 @@ const FreeCodeRoom = ({
           isMuted={isMuted}
           onToggleMute={toggleMute}
           isSpeaking={isSpeaking} 
+          isToggling={isToggling}
         />
       </div>
     </div>

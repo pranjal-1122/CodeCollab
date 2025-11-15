@@ -13,9 +13,11 @@ export const useVoiceChat = (roomId, participantIds) => {
     const [isMuted, setIsMuted] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState({});
     const [remoteStreams, setRemoteStreams] = useState({});
+    const [isToggling, setIsToggling] = useState(false);
 
     // Refs
     const myPeerId = currentUser.uid;
+    const speakingUpdateQueueRef = useRef({});
     const peersRef = useRef({});
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
@@ -42,11 +44,6 @@ export const useVoiceChat = (roomId, participantIds) => {
                     // Already disconnected
                 }
             }
-            setIsSpeaking(prev => {
-                const speaking = { ...prev };
-                delete speaking[peerId];
-                return speaking;
-            });
             delete remoteAnalyserRefs.current[peerId];
         }
     }, []);
@@ -73,6 +70,13 @@ export const useVoiceChat = (roomId, participantIds) => {
         });
 
         cleanupRemoteAnalyser(peerId);
+        
+        // Also remove from speaking state
+        setIsSpeaking(prev => {
+            const newState = { ...prev };
+            delete newState[peerId];
+            return newState;
+        });
     }, [cleanupRemoteAnalyser]);
 
     // ==================== SETUP ANALYSERS ====================
@@ -92,7 +96,7 @@ export const useVoiceChat = (roomId, participantIds) => {
                 remoteAnalyser.getByteFrequencyData(remoteDataArray);
                 let sum = remoteDataArray.reduce((a, b) => a + b, 0);
                 let avg = sum / remoteDataArray.length;
-                setIsSpeaking(prev => ({ ...prev, [peerId]: avg > 20 }));
+                speakingUpdateQueueRef.current[peerId] = avg > 15;
                 animFrameId = requestAnimationFrame(checkRemoteSpeaking);
             };
             checkRemoteSpeaking();
@@ -133,7 +137,6 @@ export const useVoiceChat = (roomId, participantIds) => {
                 myStreamRef.current = stream;
                 setMyStream(stream);
 
-                // Setup local speaking detection
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const analyser = audioContext.createAnalyser();
                 analyser.fftSize = 512;
@@ -151,15 +154,9 @@ export const useVoiceChat = (roomId, participantIds) => {
                     analyser.getByteFrequencyData(dataArray);
                     let sum = dataArray.reduce((a, b) => a + b, 0);
                     let avg = sum / dataArray.length;
-
-                    const isCurrentlySpeaking = avg > 20 && !isMuted;
-
-                    setIsSpeaking(prev => {
-                        const speaking = { ...prev };
-                        speaking[myPeerId] = isCurrentlySpeaking;
-                        return speaking;
-                    });
-
+                    const isTrackEnabled = myStreamRef.current?.getAudioTracks()[0]?.enabled ?? false;
+                    const isCurrentlySpeaking = avg > 15 && isTrackEnabled;
+                    speakingUpdateQueueRef.current[myPeerId] = isCurrentlySpeaking;
                     speakingLoopRef.current = requestAnimationFrame(checkSpeaking);
                 };
                 checkSpeaking();
@@ -173,73 +170,71 @@ export const useVoiceChat = (roomId, participantIds) => {
 
         getMicrophone();
 
-        const speakingLoop = speakingLoopRef;
-        const audioContext = audioContextRef;
-        const myStreamRefCurrent = myStreamRef;
-        const remoteAnalysers = remoteAnalyserRefs;
-        const peers = peersRef;
-
         return () => {
             mounted = false;
-
-            if (speakingLoop.current) {
-                cancelAnimationFrame(speakingLoop.current);
-            }
-
-            if (audioContext.current && audioContext.current.state !== 'closed') {
-                audioContext.current.close().catch(console.error);
-            }
-
-            if (myStreamRefCurrent.current) {
-                myStreamRefCurrent.current.getTracks().forEach(track => {
+            if (speakingLoopRef.current) cancelAnimationFrame(speakingLoopRef.current);
+            if (audioContextRef.current?.state !== 'closed') audioContextRef.current?.close().catch(console.error);
+            if (myStreamRef.current) {
+                myStreamRef.current.getTracks().forEach(track => {
                     track.stop();
                     track.enabled = false;
                 });
-                myStreamRefCurrent.current = null;
+                myStreamRef.current = null;
             }
-
-            Object.keys(remoteAnalysers.current).forEach(peerId => {
-                const refs = remoteAnalysers.current[peerId];
+            Object.keys(remoteAnalyserRefs.current).forEach(peerId => {
+                const refs = remoteAnalyserRefs.current[peerId];
                 if (refs) {
-                    if (refs.animFrameId) {
-                        cancelAnimationFrame(refs.animFrameId);
-                    }
-                    if (refs.context && refs.context.state !== 'closed') {
-                        refs.context.close().catch(console.error);
-                    }
+                    if (refs.animFrameId) cancelAnimationFrame(refs.animFrameId);
+                    if (refs.context?.state !== 'closed') refs.context?.close().catch(console.error);
                     if (refs.source) {
-                        try {
-                            refs.source.disconnect();
-                        } catch (e) {
-                            // Already disconnected
-                        }
+                        try { refs.source.disconnect(); } catch (e) {}
                     }
-                    delete remoteAnalysers.current[peerId];
+                    delete remoteAnalyserRefs.current[peerId];
                 }
             });
-
-            Object.keys(peers.current).forEach(peerId => {
-                if (peers.current[peerId]) {
-                    try {
-                        peers.current[peerId].destroy();
-                    } catch (err) {
-                        console.error("Error destroying peer:", err);
-                    }
-                    delete peers.current[peerId];
+            Object.keys(peersRef.current).forEach(peerId => {
+                if (peersRef.current[peerId]) {
+                    try { peersRef.current[peerId].destroy(); } catch (err) {}
+                    delete peersRef.current[peerId];
                 }
             });
         };
+    }, [roomId, myPeerId]);
 
-    }, [roomId, myPeerId, isMuted]);
+    // ==================== EFFECT 2: PROCESS SPEAKING QUEUE ====================
+    
+    useEffect(() => {
+        let rafId;
+        const processQueue = () => {
+            if (Object.keys(speakingUpdateQueueRef.current).length > 0) {
+                const updates = { ...speakingUpdateQueueRef.current };
+                speakingUpdateQueueRef.current = {};
 
-    // ==================== EFFECT 2: SIMPLE-PEER SIGNALING ====================
+                setIsSpeaking(prev => {
+                    let changed = false;
+                    const newState = { ...prev };
+                    for (const [peerId, speaking] of Object.entries(updates)) {
+                        if (newState[peerId] !== speaking) {
+                            newState[peerId] = speaking;
+                            changed = true;
+                        }
+                    }
+                    return changed ? newState : prev;
+                });
+            }
+            rafId = requestAnimationFrame(processQueue);
+        };
+        rafId = requestAnimationFrame(processQueue);
+        return () => cancelAnimationFrame(rafId);
+    }, []);
+
+    // ==================== EFFECT 3: SIMPLE-PEER SIGNALING ====================
 
     useEffect(() => {
         if (!myStream || !roomId) return;
 
         console.log('🚀 Setting up WebRTC signaling for:', myPeerId);
 
-        // Listen for signals from other peers
         const signalsRef = ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}`);
 
         const unsubscribe = onValue(signalsRef, (snapshot) => {
@@ -250,11 +245,10 @@ export const useVoiceChat = (roomId, participantIds) => {
             Object.entries(signals).forEach(([signalId, data]) => {
                 const { from, signal: signalData, type } = data;
 
-                if (from === myPeerId) return; // Skip own signals
+                if (from === myPeerId) return;
 
                 console.log(`📨 Received ${type} from:`, from);
 
-                // Create or get peer
                 if (!peersRef.current[from]) {
                     console.log('👤 Creating peer for:', from);
 
@@ -292,36 +286,54 @@ export const useVoiceChat = (roomId, participantIds) => {
                     peer.on('error', (err) => {
                         console.error('❌ Peer error:', err.message || err);
 
-                        // Ignore renegotiation errors - they're harmless
-                        if (err.message && err.message.includes('wrong state')) {
-                            console.log('⚠️ Ignoring state error (harmless)');
+                        const ignorableErrors = [
+                            'wrong state',
+                            'cannot signal after peer is destroyed',
+                            'InvalidStateError',
+                            'ERR_ICE_CONNECTION_FAILURE',
+                            'ERR_DATA_CHANNEL'
+                        ];
+
+                        const shouldIgnore = ignorableErrors.some(errType =>
+                            err.message?.includes(errType) || err.code?.includes(errType)
+                        );
+
+                        if (shouldIgnore) {
+                            console.log('⚠️ Ignoring benign error, keeping connection');
                             return;
                         }
 
-                        // Don't cleanup on minor errors
-                        if (err.code === 'ERR_CONNECTION_FAILURE' ||
-                            err.message?.includes('InvalidStateError')) {
-                            console.log('⚠️ Minor error, keeping connection');
-                            return;
+                        if (err.code === 'ERR_CONNECTION_FAILURE' && peer._pc) {
+                            const state = peer._pc.iceConnectionState;
+                            if (state === 'connected' || state === 'completed') {
+                                console.log('⚠️ Connection still active despite error, keeping peer');
+                                return;
+                            }
                         }
 
+                        console.log('❌ Critical error, cleaning up peer');
                         cleanupPeer(from);
                     });
 
                     peer.on('close', () => {
                         console.log('📴 Peer closed:', from);
-                        // Small delay before cleanup to prevent race conditions
-                        setTimeout(() => {
-                            cleanupPeer(from);
-                        }, 500);
+                        setTimeout(() => cleanupPeer(from), 500);
                     });
+
+                    if (peer._pc) {
+                        peer._pc.addEventListener('iceconnectionstatechange', () => {
+                            const state = peer._pc.iceConnectionState;
+                            console.log(`🧊 ICE state (${from}):`, state);
+                            if (state === 'failed' || state === 'closed') {
+                                console.log(`❌ ICE ${state}, cleaning up peer ${from}`);
+                                setTimeout(() => cleanupPeer(from), 1000);
+                            }
+                        });
+                    }
                 }
 
-                /// Process the signal
                 try {
                     peersRef.current[from].signal(signalData);
-
-                    // Remove processed signal
                     remove(ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}/${signalId}`));
                 } catch (err) {
                     console.error('❌ Error processing signal:', err);
@@ -331,13 +343,12 @@ export const useVoiceChat = (roomId, participantIds) => {
 
         return () => {
             unsubscribe();
-            // Cleanup signals
             remove(ref(db, `rooms/${roomId}/webrtcSignals/${myPeerId}`));
         };
 
     }, [roomId, myPeerId, myStream, cleanupPeer, setupRemoteAnalyser]);
 
-    // ==================== EFFECT 3: INITIATE CONNECTIONS ====================
+    // ==================== EFFECT 4: INITIATE CONNECTIONS ====================
 
     useEffect(() => {
         if (!myStream || !roomId) return;
@@ -347,8 +358,6 @@ export const useVoiceChat = (roomId, participantIds) => {
         participantIds.forEach(peerId => {
             if (peerId === myPeerId) return;
             if (peersRef.current[peerId]) return;
-
-            // Only initiate if our ID is greater (prevents duplicates)
             if (myPeerId <= peerId) return;
 
             console.log('📞 Initiating connection to:', peerId);
@@ -386,6 +395,32 @@ export const useVoiceChat = (roomId, participantIds) => {
 
             peer.on('error', (err) => {
                 console.error('❌ Peer error:', err);
+
+                const ignorableErrors = [
+                    'wrong state',
+                    'cannot signal after peer is destroyed',
+                    'InvalidStateError',
+                    'ERR_ICE_CONNECTION_FAILURE',
+                    'ERR_DATA_CHANNEL'
+                ];
+
+                const shouldIgnore = ignorableErrors.some(errType =>
+                    err.message?.includes(errType) || err.code?.includes(errType)
+                );
+
+                if (shouldIgnore) {
+                    console.log('⚠️ Ignoring benign error, keeping connection');
+                    return;
+                }
+
+                if (err.code === 'ERR_CONNECTION_FAILURE' && peer._pc) {
+                    const state = peer._pc.iceConnectionState;
+                    if (state === 'connected' || state === 'completed') {
+                        console.log('⚠️ Connection still active, keeping peer');
+                        return;
+                    }
+                }
+
                 cleanupPeer(peerId);
             });
 
@@ -393,25 +428,32 @@ export const useVoiceChat = (roomId, participantIds) => {
                 console.log('📴 Peer closed:', peerId);
                 cleanupPeer(peerId);
             });
+
+            if (peer._pc) {
+                peer._pc.addEventListener('iceconnectionstatechange', () => {
+                    const state = peer._pc.iceConnectionState;
+                    console.log(`🧊 ICE state (${peerId}):`, state);
+                    if (state === 'failed' || state === 'closed') {
+                        console.log(`❌ ICE ${state}, cleaning up peer ${peerId}`);
+                        setTimeout(() => cleanupPeer(peerId), 1000);
+                    }
+                });
+            }
         });
 
     }, [roomId, myPeerId, myStream, participantIds, cleanupPeer, setupRemoteAnalyser]);
 
-
-    // ==================== EFFECT 4: KEEP CONNECTION ALIVE ====================
+    // ==================== EFFECT 5: KEEP CONNECTION ALIVE ====================
 
     useEffect(() => {
         if (!roomId || !myPeerId) return;
 
-        // Send periodic heartbeat to keep connection metadata alive
         const heartbeatRef = ref(db, `rooms/${roomId}/heartbeat/${myPeerId}`);
 
-        const sendHeartbeat = () => {
-            set(heartbeatRef, Date.now());
-        };
+        const sendHeartbeat = () => set(heartbeatRef, Date.now());
 
-        sendHeartbeat(); // Initial heartbeat
-        const interval = setInterval(sendHeartbeat, 5000); // Every 5 seconds
+        sendHeartbeat();
+        const interval = setInterval(sendHeartbeat, 5000);
 
         return () => {
             clearInterval(interval);
@@ -420,26 +462,32 @@ export const useVoiceChat = (roomId, participantIds) => {
 
     }, [roomId, myPeerId]);
 
-
-
     // ==================== MUTE/UNMUTE ====================
 
     const toggleMute = useCallback(() => {
-        if (myStreamRef.current) {
+        if (myStreamRef.current && !isToggling) {
+            setIsToggling(true);
+
             setIsMuted(currentMuteState => {
                 const newMuteState = !currentMuteState;
 
-                // Mute/unmute all audio tracks
                 myStreamRef.current.getAudioTracks().forEach(track => {
                     track.enabled = !newMuteState;
                 });
+
+                if (roomId && currentUser) {
+                    const muteStatusRef = ref(db, `rooms/${roomId}/muteStatus/${currentUser.uid}`);
+                    set(muteStatusRef, newMuteState).catch(console.error);
+                }
 
                 console.log(newMuteState ? '🔇 Muted' : '🔊 Unmuted');
 
                 return newMuteState;
             });
-        }
-    }, []);
 
-    return { remoteStreams, isMuted, toggleMute, isSpeaking };
+            setTimeout(() => setIsToggling(false), 300);
+        }
+    }, [roomId, currentUser, isToggling]);
+
+    return { remoteStreams, isMuted, toggleMute, isSpeaking, isToggling };
 };

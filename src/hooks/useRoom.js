@@ -15,64 +15,44 @@ export const useRoom = (roomId, currentUser) => {
   const [loadingRTDB, setLoadingRTDB] = useState(true);
   const [error, setError] = useState(null);
 
-  // --- EFFECT 1: FIRESTORE (THIS IS UPDATED) ---
-  useEffect(() => {
-    if (!roomId || !currentUser) {
+  // --- EFFECT 1: FIRESTORE ---
+useEffect(() => {
+  if (!roomId || !currentUser) {
+    setLoadingRoom(false);
+    if (!roomId) setError("No room ID provided");
+    return;
+  }
+  
+  setLoadingRoom(true);
+  const roomDocRef = doc(firestore, 'rooms', roomId);
+  
+  // Simple, single attempt listener
+  const unsubscribe = onFirestoreSnapshot(
+    roomDocRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        setRoom(docSnap.data());
+        setError(null);
+      } else {
+        setError("Room not found");
+        setRoom(null);
+      }
       setLoadingRoom(false);
-      if (!roomId) setError("No room ID provided");
-      return;
+    },
+    (err) => {
+      console.error('Error listening to room:', err);
+      setError(`Failed to load room data. (${err.message})`);
+      setLoadingRoom(false);
     }
-    
-    setLoadingRoom(true);
-    const roomDocRef = doc(firestore, 'rooms', roomId);
+  );
 
-    let unsubscribe;
-    let attempt = 0; 
-    
-    const attachListener = () => {
-      
-      if (unsubscribe) {
-        unsubscribe();
-      }
-      
-      // --- FIX 2: Use the correct aliased name 'onFirestoreSnapshot' ---
-      unsubscribe = onFirestoreSnapshot(
-        roomDocRef,
-        (docSnap) => {
-          // --- SUCCESS! ---
-          if (docSnap.exists()) {
-            setRoom(docSnap.data());
-            setError(null);
-          } else {
-            setError("Room not found");
-            setRoom(null);
-          }
-          setLoadingRoom(false);
-        },
-        (err) => {
-          // --- FAILURE ---
-          console.error(`Error listening to room (Attempt ${attempt + 1}):`, err);
-          
-          if (attempt < 3 && err.code === 'permission-denied') {
-            attempt++;
-            setTimeout(attachListener, 500 * attempt); 
-          } else {
-            setError(`Failed to load room data. (${err.message})`);
-            setLoadingRoom(false);
-          }
-        }
-      );
-    };
-    
-    attachListener(); // Start the first attempt
-
-    // Cleanup
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [roomId, currentUser]); 
+  // Cleanup
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
+}, [roomId, currentUser]);
 
   // --- EFFECT 2: REALTIME DATABASE (no change) ---
   useEffect(() => {
