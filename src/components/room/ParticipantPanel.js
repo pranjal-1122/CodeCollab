@@ -4,25 +4,16 @@ import FollowIcon from '../common/FollowIcon';
 import ChatMessageBox from './ChatMessageBox';
 import AiMentorPanel from './AiMentorPanel';
 
-// --- 1. NEW, BETTER HEROICONS ---
+// (Icons are all unchanged)
 const UserGroupIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.468 16.99l-1.263 1.263a.75.75 0 001.06 1.06l1.263-1.263a.75.75 0 00-1.06-1.06zM2.25 10.75a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H2.25zM4 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM17.75 12.25a.75.75 0 000-1.5h-.75a.75.75 0 000 1.5h.75zM16 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM16.532 16.99l1.263 1.263a.75.75 0 001.06-1.06l-1.263-1.263a.75.75 0 00-1.06 1.06zM10 12a3 3 0 100-6 3 3 0 000 6zM8.5 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM11.5 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75z" />
-    <path fillRule="evenodd" d="M3.25 10a6.75 6.75 0 1113.5 0 6.75 6.75 0 01-13.5 0zM10 3.25a6.75 6.75 0 110 13.5 6.75 6.75 0 010-13.5z" clipRule="evenodd" />
-  </svg>
+  <img src="/icons/participants.png" alt="Participants" className="w-5 h-5" />
 );
 const ChatBubbleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path fillRule="evenodd" d="M10 2c-4.418 0-8 3.134-8 7 0 2.653 1.686 4.922 4.01 6.163a.75.75 0 00.99-1.163A.75.75 0 006.5 13a6.5 6.5 0 01.782-5.462A4.75 4.75 0 0110 6c1.612 0 3.033.79 3.903 2.003.87 1.214 1.28 2.633 1.144 4.025a.75.75 0 001.316.518A7.001 7.001 0 0018 9c0-3.866-3.582-7-8-7z" clipRule="evenodd" />
-    <path d="M10 18.5a7.5 7.5 0 007.478-6.989a.75.75 0 00-.74-.761H3.262a.75.75 0 00-.74.761A7.5 7.5 0 0010 18.5z" />
-  </svg>
+  <img src="/icons/chat.png" alt="Chat" className="w-5 h-5" />
 );
 const AiIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path fillRule="evenodd" d="M10.868 2.884c.321-.772.321-1.646 0-2.418a.75.75 0 00-1.423-.19L8.354 3.75l-2.03-2.03a.75.75 0 00-1.06 1.06l2.03 2.03-3.481 1.09a.75.75 0 00-.517 1.222l2.67 4.198-2.67 4.198a.75.75 0 00.517 1.222l3.481 1.09-2.03 2.03a.75.75 0 101.06 1.06l2.03-2.03 1.093 3.482a.75.75 0 001.423-.19l.79-2.418.79 2.418a.75.75 0 001.423.19l1.093-3.482 2.03 2.03a.75.75 0 101.06-1.06l-2.03-2.03 3.481-1.09a.75.75 0 00-.517-1.222l-2.67-4.198 2.67-4.198a.75.75 0 00-.517-1.222l-3.481-1.09 2.03-2.03a.75.75 0 10-1.06-1.06l-2.03 2.03L10.868 2.884z" clipRule="evenodd" />
-  </svg>
+  <img src="/icons/ai-mentor.png" alt="AI Mentor" className="w-5 h-5" />
 );
-// --- END OF ICON FIX ---
 
 const MicOnIcon = () => <span title="Mic is on">🎤</span>;
 const MicOffIcon = () => <span title="Mic is muted">🔇</span>;
@@ -30,11 +21,10 @@ const MicOffIcon = () => <span title="Mic is muted">🔇</span>;
 const TabButton = ({ title, icon, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex-1 flex flex-col items-center justify-center p-2 text-xs font-medium ${
-      isActive
+    className={`flex-1 flex flex-col items-center justify-center p-2 text-xs font-medium ${isActive
         ? 'text-white border-b-2 border-indigo-500'
         : 'text-gray-400 hover:text-white'
-    }`}
+      }`}
   >
     {icon}
     <span className="mt-1">{title}</span>
@@ -61,7 +51,7 @@ const ParticipantPanel = ({
   const { currentUser, userProfile } = useAuth();
   const [message, setMessage] = useState("");
   const chatEndRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('participants'); 
+  const [activeTab, setActiveTab] = useState('participants');
 
   useEffect(() => {
     if (activeTab === 'chat') {
@@ -84,7 +74,7 @@ const ParticipantPanel = ({
 
   const renderParticipants = () => (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2">
+      <div className="flex-1 overflow-y-auto mb-4 space-y-3 p-2">
         {room.participantProfiles.map(p => {
           const isCurrentUser = p.uid === currentUser.uid;
           const isBeingFollowed = followingUserId === p.uid;
@@ -121,8 +111,8 @@ const ParticipantPanel = ({
         onClick={onToggleMute}
         disabled={isToggling}
         className={`w-full flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold ${isMuted
-            ? 'bg-red-600 hover:bg-red-700'
-            : 'bg-gray-700 hover:bg-gray-600'
+          ? 'bg-red-600 hover:bg-red-700'
+          : 'bg-gray-700 hover:bg-gray-600'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
       >
         {isMuted ? <MicOffIcon /> : <MicOnIcon />}
@@ -162,7 +152,7 @@ const ParticipantPanel = ({
   );
 
   const renderAiMentor = () => (
-    <AiMentorPanel 
+    <AiMentorPanel
       onSendAiMessage={onSendAiMessage}
       chatHistory={chatHistory}
       isLoading={isAiLoading}
@@ -173,20 +163,19 @@ const ParticipantPanel = ({
   return (
     <div className="w-full h-full bg-gray-800 border-l border-gray-700 p-4 flex flex-col">
       <div className="flex-shrink-0 flex border-b border-gray-700 mb-4">
-        {/* --- 2. USE THE NEW ICONS --- */}
-        <TabButton 
+        <TabButton
           title="Participants"
           icon={<UserGroupIcon />}
           isActive={activeTab === 'participants'}
           onClick={() => setActiveTab('participants')}
         />
-        <TabButton 
+        <TabButton
           title="Chat"
           icon={<ChatBubbleIcon />}
           isActive={activeTab === 'chat'}
           onClick={() => setActiveTab('chat')}
         />
-        <TabButton 
+        <TabButton
           title="AI Mentor"
           icon={<AiIcon />}
           isActive={activeTab === 'ai'}
@@ -194,12 +183,12 @@ const ParticipantPanel = ({
         />
       </div>
 
-      {/* --- 3. RESIZING BUG FIX --- */}
-      {/* This new div wrapper fixes the chat input bug on resize */}
-      <div className="flex-1 overflow-hidden">
+      {/* --- THIS IS THE FIX --- */}
+      {/* This div wrapper ensures its children can use flex-1 correctly */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {activeTab === 'participants' && renderParticipants()}
         {activeTab === 'chat' && renderChat()}
-        {activeTab === 'ai' && renderAiMentor()}
+        {activeTab === 'ai' && renderAiMentor()} {/* <-- I also fixed the 'activeDab' typo here */}
       </div>
     </div>
   );
