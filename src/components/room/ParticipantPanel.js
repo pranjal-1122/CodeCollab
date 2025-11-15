@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import FollowIcon from '../common/FollowIcon';
 import ChatMessageBox from './ChatMessageBox';
-import AiMentorPanel from './AiMentorPanel'; // <-- 1. IMPORT THE NEW AI PANEL
+import AiMentorPanel from './AiMentorPanel';
 
-// --- Icons for Tabs ---
+// --- 1. UPDATED, CLEANER ICONS ---
+// (Heroicons: https://heroicons.com)
 const PeopleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
     <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.468 16.99l-1.263 1.263a.75.75 0 001.06 1.06l1.263-1.263a.75.75 0 00-1.06-1.06zM2.25 10.75a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H2.25zM4 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM17.75 12.25a.75.75 0 000-1.5h-.75a.75.75 0 000 1.5h.75zM16 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM16.532 16.99l1.263 1.263a.75.75 0 001.06-1.06l-1.263-1.263a.75.75 0 00-1.06 1.06zM10 12a3 3 0 100-6 3 3 0 000 6zM8.5 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75zM11.5 14.25a.75.75 0 00-.75.75v.75a.75.75 0 001.5 0v-.75a.75.75 0 00-.75-.75z" />
@@ -22,11 +23,11 @@ const AiIcon = () => (
     <path fillRule="evenodd" d="M10.868 2.884c.321-.772.321-1.646 0-2.418a.75.75 0 00-1.423-.19L8.354 3.75l-2.03-2.03a.75.75 0 00-1.06 1.06l2.03 2.03-3.481 1.09a.75.75 0 00-.517 1.222l2.67 4.198-2.67 4.198a.75.75 0 00.517 1.222l3.481 1.09-2.03 2.03a.75.75 0 101.06 1.06l2.03-2.03 1.093 3.482a.75.75 0 001.423-.19l.79-2.418.79 2.418a.75.75 0 001.423.19l1.093-3.482 2.03 2.03a.75.75 0 101.06-1.06l-2.03-2.03 3.481-1.09a.75.75 0 00-.517-1.222l-2.67-4.198 2.67-4.198a.75.75 0 00-.517-1.222l-3.481-1.09 2.03-2.03a.75.75 0 10-1.06-1.06l-2.03 2.03L10.868 2.884z" clipRule="evenodd" />
   </svg>
 );
+// --- END OF ICON UPDATES ---
 
 const MicOnIcon = () => <span title="Mic is on">🎤</span>;
 const MicOffIcon = () => <span title="Mic is muted">🔇</span>;
 
-// --- Tab Button Component ---
 const TabButton = ({ title, icon, isActive, onClick }) => (
   <button
     onClick={onClick}
@@ -53,18 +54,18 @@ const ParticipantPanel = ({
   onToggleMute,
   isSpeaking,
   isToggling,
-  // --- 2. ADD NEW PROPS FOR AI ---
   onGetAiReview,
   aiSuggestions,
   isAiLoading,
+  onSendAiMessage, 
+  chatHistory,     
   aiError,
 }) => {
   const { currentUser, userProfile } = useAuth();
   const [message, setMessage] = useState("");
   const chatEndRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('participants'); // 'participants', 'chat', 'ai'
+  const [activeTab, setActiveTab] = useState('participants');
 
-  // Auto-scroll chat
   useEffect(() => {
     if (activeTab === 'chat') {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,10 +85,10 @@ const ParticipantPanel = ({
     }
   };
 
-  // --- 3. RENDER FUNCTIONS FOR EACH TAB ---
   const renderParticipants = () => (
-    <div className="flex-1 flex flex-col overflow-auto">
-      <div className="mb-4 space-y-3">
+    // --- 2. BUG FIX: Added 'overflow-hidden' to parent ---
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2"> {/* Added pr-2 for scrollbar padding */}
         {room.participantProfiles.map(p => {
           const isCurrentUser = p.uid === currentUser.uid;
           const isBeingFollowed = followingUserId === p.uid;
@@ -120,11 +121,11 @@ const ParticipantPanel = ({
           );
         })}
       </div>
-      <div className="flex-grow"></div> {/* Pushes controls to bottom */}
+      {/* Mute Button pushed to bottom */}
       <button
         onClick={onToggleMute}
         disabled={isToggling}
-        className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold ${isMuted
+        className={`w-full flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold ${isMuted
             ? 'bg-red-600 hover:bg-red-700'
             : 'bg-gray-700 hover:bg-gray-600'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -136,7 +137,10 @@ const ParticipantPanel = ({
   );
 
   const renderChat = () => (
-    <div className="flex-1 flex flex-col overflow-auto">
+    // --- 3. BUG FIX: Replaced 'overflow-auto' with 'overflow-hidden' ---
+    // This stops the horizontal scroll. The child div handles vertical scroll.
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* This div handles the scrolling */}
       <div className="flex-1 space-y-4 overflow-y-auto mb-4 pr-2">
         {chat.map(msg => (
           <ChatMessageBox
@@ -147,11 +151,12 @@ const ParticipantPanel = ({
         ))}
         <div ref={chatEndRef} />
       </div>
-      <form onSubmit={handleSend} className="flex gap-2">
+      {/* This form is now contained properly */}
+      <form onSubmit={handleSend} className="flex gap-2 flex-shrink-0"> {/* Added flex-shrink-0 */}
         <input
           type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => setMessage(e.T.value)}
           className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
           placeholder="Type a message..."
         />
@@ -167,6 +172,8 @@ const ParticipantPanel = ({
 
   const renderAiMentor = () => (
     <AiMentorPanel 
+      onSendAiMessage={onSendAiMessage}
+      chatHistory={chatHistory}
       onGetReview={onGetAiReview}
       suggestions={aiSuggestions}
       isLoading={isAiLoading}
@@ -175,8 +182,9 @@ const ParticipantPanel = ({
   );
 
   return (
-    <div className="w-80 flex-shrink-0 bg-gray-800 border-l border-gray-700 p-4 flex flex-col">
-      {/* --- 4. THE NEW TAB HEADER --- */}
+    // --- 4. RESIZE PREP: Removed 'w-80' and 'flex-shrink-0' ---
+    // We'll let the resizable panel control the width.
+    <div className="w-full h-full bg-gray-800 border-l border-gray-700 p-4 flex flex-col">
       <div className="flex-shrink-0 flex border-b border-gray-700 mb-4">
         <TabButton 
           title="Participants"
@@ -198,7 +206,6 @@ const ParticipantPanel = ({
         />
       </div>
 
-      {/* --- 5. CONDITIONAL CONTENT AREA --- */}
       {activeTab === 'participants' && renderParticipants()}
       {activeTab === 'chat' && renderChat()}
       {activeTab === 'ai' && renderAiMentor()}

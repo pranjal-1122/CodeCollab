@@ -41,8 +41,8 @@ const FreeCodeRoom = ({
   const [followingUserId, setFollowingUserId] = useState(null);
   const [localCode, setLocalCode] = useState(null);
   
-  // --- 1. ADD NEW AI STATE ---
-  const [aiSuggestions, setAiSuggestions] = useState("");
+  // --- 1. STATE IS NOW A CHAT HISTORY ARRAY ---
+  const [aiChatHistory, setAiChatHistory] = useState([]); // Was aiSuggestions
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   
@@ -59,7 +59,7 @@ const FreeCodeRoom = ({
     updateFileCode(fileId, code);
   }, 100);
 
-  // (This useEffect block is unchanged)
+  // (All useEffects are unchanged)
   useEffect(() => {
     if (!activeFileId && files && Object.keys(files).length > 0) {
       const firstFileId = Object.keys(files)[0];
@@ -78,7 +78,6 @@ const FreeCodeRoom = ({
     }
   }, [files, activeFileId, currentUser.uid, updatePresence, followingUserId, localCode]);
 
-  // (This useEffect block is unchanged)
   useEffect(() => {
     if (followingUserId && presence && presence[followingUserId]) {
       const followedFileId = presence[followingUserId].activeFileId;
@@ -91,7 +90,6 @@ const FreeCodeRoom = ({
     }
   }, [followingUserId, presence, files, activeFileId, localCode]); 
 
-  // (This useEffect block is unchanged)
   useEffect(() => {
     if (files && activeFileId && !files[activeFileId]) {
       console.warn(`Active file ${activeFileId} was deleted. Switching to a new file.`);
@@ -99,12 +97,10 @@ const FreeCodeRoom = ({
       
       if (remainingFileIds.length > 0) {
         const newActiveFileId = remainingFileIds[0];
-        
         setFollowingUserId(null); 
         isTyping.current = false;
         setActiveFileId(newActiveFileId);
         setLocalCode(files[newActiveFileId].code);
-        
         if (currentUser?.uid) {
           updatePresence(currentUser.uid, newActiveFileId);
         }
@@ -115,46 +111,53 @@ const FreeCodeRoom = ({
     }
   }, [files, activeFileId, currentUser, updatePresence]);
 
-  // --- 2. ADD THE AI API CALL HANDLER ---
-  const handleGetAiReview = async () => {
-    // Check for active file
+
+  // --- 2. HANDLER IS RENAMED AND UPDATED FOR CHAT ---
+  const handleSendAiMessage = async (message) => { // Was handleGetAiReview
     if (!activeFileId || !files[activeFileId]) {
       setAiError("Please select a file to review.");
       return;
     }
 
-    // Get the code and language for the API call
     const code = files[activeFileId].code;
     const language = room.language;
-
-    // Set loading state
+    
+    // Add the user's message to the chat history immediately
+    const newUserMessage = { role: "user", parts: [{ text: message }] };
+    const currentHistory = [...aiChatHistory, newUserMessage];
+    
+    setAiChatHistory(currentHistory);
     setIsAiLoading(true);
-    setAiSuggestions("");
     setAiError("");
 
     try {
-      // Call the Vercel API endpoint we created
+      // Pass the code, language, new message, AND the previous history
       const response = await fetch('/api/getAiCodeReview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, language }),
+        body: JSON.stringify({
+          code,
+          language,
+          message,
+          history: aiChatHistory // Send the history *before* the new user message
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Handle errors from the API (e.g., 400, 500)
         throw new Error(data.error || 'Something went wrong');
       }
 
-      // Success! Set the suggestions
-      setAiSuggestions(data.suggestions);
+      // Add the AI's response to the chat history
+      const newAiMessage = { role: "model", parts: [{ text: data.suggestions }] };
+      setAiChatHistory([...currentHistory, newAiMessage]);
 
     } catch (err) {
       console.error("AI review error:", err);
       setAiError(err.message || "Failed to connect to the AI service.");
+      // Note: The UI will now display this error as a chat bubble
     } finally {
-      // ALWAYS set loading to false when done
       setIsAiLoading(false);
     }
   };
@@ -222,89 +225,83 @@ const FreeCodeRoom = ({
     removeFile(fileId);
   };
 
-  // (This render logic is unchanged)
   if (!files || !activeFileId || !files[activeFileId] || localCode === null) {
     return <div className="min-h-screen bg-gray-900 text-white p-10">Loading files...</div>;
   }
-
-  const activeFile = {
-    id: activeFileId,
-    ...files[activeFileId]
-  };
+  const activeFile = { id: activeFileId, ...files[activeFileId] };
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-
-      {/* (AudioPlayer is unchanged) */}
       {Object.entries(remoteStreams).map(([peerId, stream]) => (
         <AudioPlayer key={peerId} stream={stream} peerId={peerId} />
       ))}
-
-      {/* (Header is unchanged) */}
       <div className="flex-shrink-0 bg-gray-800 p-4 shadow-md z-10">
         <h1 className="text-2xl font-bold">{room.roomName}</h1>
       </div>
-
       <div className="flex flex-1 overflow-hidden">
-        {/* (Main Coding Area is unchanged) */}
-        <div className="flex-1 flex flex-col">
-          <FileTabsBar
-            files={files}
-            activeFileId={activeFileId}
-            onSelectFile={handleSelectFile}
-            onAddNewFile={addNewFile}
-            onCloseFile={handleCloseFile}
-            language={room.language}
-          />
-
-          <PanelGroup direction="vertical">
-            <Panel defaultSize={70} minSize={20}>
-              <div className="bg-gray-800 h-full">
-                <Editor
-                  height="100%"
-                  theme="vs-dark"
-                  language={room.language.toLowerCase()}
-                  value={localCode}
-                  onChange={handleEditorChange}
-                  onMount={handleEditorDidMount}
-                  options={{ 
-                    fontSize: 14, 
-                    minimap: { enabled: false }, 
-                    wordWrap: 'on',
-                  }}
-                />
-              </div>
-            </Panel>
-            <PanelResizeHandle className="h-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
-            <Panel defaultSize={30} minSize={10}>
-              <OutputPanel
-                activeFile={{ ...activeFile, code: files[activeFileId].code }} 
+        <PanelGroup direction="horizontal">
+          <Panel defaultSize={75} minSize={30}>
+            <div className="flex-1 flex flex-col h-full">
+              <FileTabsBar
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={handleSelectFile}
+                onAddNewFile={addNewFile}
+                onCloseFile={handleCloseFile}
                 language={room.language}
-                updateFileOutput={updateFileOutput}
               />
-            </Panel>
-          </PanelGroup>
-        </div>
-
-        {/* --- 3. UPDATE THE PARTICIPANT PANEL PROPS --- */}
-        <ParticipantPanel
-          room={room}
-          presence={presence}
-          chat={chat}
-          followingUserId={followingUserId}
-          onFollowUser={handleFollowUser}
-          onSendMessage={sendChatMessage}
-          isMuted={isMuted}
-          onToggleMute={toggleMute}
-          isSpeaking={isSpeaking} 
-          isToggling={isToggling}
-          
-          // --- Pass all the new AI props down ---
-          onGetAiReview={handleGetAiReview}
-          aiSuggestions={aiSuggestions}
-          isAiLoading={isAiLoading}
-          aiError={aiError}
-        />
+              <PanelGroup direction="vertical">
+                <Panel defaultSize={70} minSize={20}>
+                  <div className="bg-gray-800 h-full">
+                    <Editor
+                      height="100%"
+                      theme="vs-dark"
+                      language={room.language.toLowerCase()}
+                      value={localCode}
+                      onChange={handleEditorChange}
+                      onMount={handleEditorDidMount}
+                      options={{ 
+                        fontSize: 14, 
+                        minimap: { enabled: false }, 
+                        wordWrap: 'on',
+                      }}
+                    />
+                  </div>
+                </Panel>
+                <PanelResizeHandle className="h-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
+                <Panel defaultSize={30} minSize={10}>
+                  <OutputPanel
+                    activeFile={{ ...activeFile, code: files[activeFileId].code }} 
+                    language={room.language}
+                    updateFileOutput={updateFileOutput}
+                  />
+                </Panel>
+              </PanelGroup>
+            </div>
+          </Panel>
+          <PanelResizeHandle className="w-2 bg-gray-900 hover:bg-indigo-600 transition-colors" />
+          <Panel defaultSize={25} minSize={20}>
+            {/* --- 3. PASS THE NEW PROPS DOWN --- */}
+            <ParticipantPanel
+              room={room}
+              presence={presence}
+              chat={chat}
+              followingUserId={followingUserId}
+              onFollowUser={handleFollowUser}
+              onSendMessage={sendChatMessage}
+              isMuted={isMuted}
+              onToggleMute={toggleMute}
+              isSpeaking={isSpeaking} 
+              isToggling={isToggling}
+              
+              // --- Pass the new chat props ---
+              onSendAiMessage={handleSendAiMessage} // Renamed prop
+              chatHistory={aiChatHistory}       // Renamed prop
+              isAiLoading={isAiLoading}
+              aiError={aiError}
+            />
+          </Panel>
+        </PanelGroup>
       </div>
     </div>
   );

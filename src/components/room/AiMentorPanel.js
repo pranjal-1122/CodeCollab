@@ -1,56 +1,131 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 
-// A simple "Sparkles" icon for the AI
-const SparklesIcon = () => (
+// --- A. New Icon for Sending a Message ---
+const SendIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path fillRule="evenodd" d="M10.868 2.884c.321-.772.321-1.646 0-2.418a.75.75 0 00-1.423-.19L8.354 3.75l-2.03-2.03a.75.75 0 00-1.06 1.06l2.03 2.03-3.481 1.09a.75.75 0 00-.517 1.222l2.67 4.198-2.67 4.198a.75.75 0 00.517 1.222l3.481 1.09-2.03 2.03a.75.75 0 101.06 1.06l2.03-2.03 1.093 3.482a.75.75 0 001.423-.19l.79-2.418.79 2.418a.75.75 0 001.423.19l1.093-3.482 2.03 2.03a.75.75 0 101.06-1.06l-2.03-2.03 3.481-1.09a.75.75 0 00.517-1.222l-2.67-4.198 2.67-4.198a.75.75 0 00-.517-1.222l-3.481-1.09 2.03-2.03a.75.75 0 10-1.06-1.06l-2.03 2.03L10.868 2.884z" clipRule="evenodd" />
+    <path d="M3.105 3.105a.75.75 0 01.043.95l-1.042 1.635a.75.75 0 01-1.127.075l-.04-l.044a.75.75 0 01.075-1.128l1.635-1.042a.75.75 0 01.95.043zM16.895 3.105a.75.75 0 01.95-.043l1.635 1.042a.75.75 0 01.075 1.128l-.044.04a.75.75 0 01-1.128-.075l-1.635-1.042a.75.75 0 01.043-.95zM10 18a.75.75 0 01.75-.75h.01a.75.75 0 010 1.5H10.75a.75.75 0 01-.75-.75zM8.28 15.65a.75.75 0 001.06 1.06l1.635-1.042a.75.75 0 10-.95-1.488l-1.635 1.042a.75.75 0 00-.11.428zM11.72 15.65a.75.75 0 001.06-1.06l-1.635-1.042a.75.75 0 10-.95 1.488l1.635 1.042a.75.75 0 00-.11-.428zM4.35 12.11a.75.75 0 00-1.06-1.06l-1.042 1.635a.75.75 0 101.488.95l1.042-1.635a.75.75 0 00-.428-.11zM15.65 12.11a.75.75 0 00-1.06 1.06l1.042 1.635a.75.75 0 101.488-.95l-1.042-1.635a.75.75 0 00-.428.11zM10 2.25a.75.75 0 01.75.75v.01a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM3.105 16.895a.75.75 0 01.043-.95l1.042-1.635a.75.75 0 011.128-.075l.04.044a.75.75 0 01-.075 1.128l-1.635 1.042a.75.75 0 01-.95-.043zM16.895 16.895a.75.75 0 01.95.043l-1.635 1.042a.75.75 0 01-1.128-.075l.044-.04a.75.75 0 011.128.075l1.635-1.042a.75.75 0 01-.043.95z" />
   </svg>
 );
 
-/**
- * This component displays the AI mentor UI
- * It receives all its logic and state as props from the parent.
- */
-const AiMentorPanel = ({ onGetReview, suggestions, isLoading, error }) => {
-
-  const renderContent = () => {
-    if (isLoading) {
-      return <p className="text-gray-400 text-sm animate-pulse">Thinking...</p>;
-    }
-    if (error) {
-      return <p className="text-red-400 text-sm">{error}</p>;
-    }
-    if (suggestions) {
-      // 'prose-invert' styles the markdown for a dark background
-      // 'prose-sm' makes the text smaller
-      return (
+// --- B. New Component for a single Chat Message ---
+// This will render both the "user" and "model" (AI) messages
+const AiChatMessage = ({ message }) => {
+  const { role, parts } = message;
+  const isUser = role === 'user';
+  
+  return (
+    <div className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
+      {/* Icon */}
+      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-gray-600' : 'bg-indigo-600'}`}>
+        {isUser ? (
+          <span title="You">🧑</span>
+        ) : (
+          <SendIcon />
+        )}
+      </div>
+      
+      {/* Message Bubble */}
+      <div className={`flex flex-col p-3 rounded-xl ${
+        isUser 
+          ? 'bg-gray-700 rounded-tr-none' 
+          : 'bg-indigo-900 bg-opacity-50 rounded-tl-none'
+      }`}>
         <div className="prose prose-invert prose-sm text-gray-300">
-          <ReactMarkdown>{suggestions}</ReactMarkdown>
+          <ReactMarkdown>{parts[0].text}</ReactMarkdown>
         </div>
-      );
-    }
-    return <p className="text-gray-400 text-sm">Click the button to get feedback on your currently active file.</p>;
+      </div>
+    </div>
+  );
+};
+
+
+// --- C. The MAIN COMPONENT, now a full chat UI ---
+const AiMentorPanel = ({
+  onSendAiMessage, // Renamed from 'onGetReview'
+  chatHistory,     // Renamed from 'suggestions'
+  isLoading,
+  error
+}) => {
+  const [userMessage, setUserMessage] = useState("");
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to the bottom of the chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, isLoading]); // Scroll when history changes or when AI starts loading
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!userMessage.trim() || isLoading) return;
+
+    // This is the initial "Get AI Help" message
+    const messageToSend = chatHistory.length === 0 
+      ? `Get AI Help: ${userMessage}` 
+      : userMessage;
+    
+    onSendAiMessage(messageToSend);
+    setUserMessage("");
   };
+
+  // Determine if this is the very first message
+  const isFirstMessage = chatHistory.length === 0;
 
   return (
     <div className="flex flex-col h-full">
-      <h2 className="text-xl font-bold mb-4">AI Mentor</h2>
+      <h2 className="text-xl font-bold mb-4 flex-shrink-0">AI Mentor</h2>
 
-      {/* The main content area */}
+      {/* --- D. The Chat History Area --- */}
       <div className="flex-1 overflow-y-auto mb-4 pr-2 space-y-4">
-        {renderContent()}
+        {chatHistory.map((msg, index) => (
+          <AiChatMessage key={index} message={msg} />
+        ))}
+        
+        {/* Show a "Thinking..." bubble while loading */}
+        {isLoading && (
+          <div className="flex items-start gap-2.5">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-indigo-600">
+              <SendIcon />
+            </div>
+            <div className="flex flex-col p-3 rounded-xl bg-indigo-900 bg-opacity-50 rounded-tl-none">
+              <p className="text-gray-400 text-sm animate-pulse">Thinking...</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Show an error message in the chat */}
+        {error && (
+           <div className="flex items-start gap-2.5">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-red-600">
+              <span title="Error">!</span>
+            </div>
+            <div className="flex flex-col p-3 rounded-xl bg-red-900 bg-opacity-50 rounded-tl-none">
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* This is the invisible element we scroll to */}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* The button at the bottom */}
-      <button
-        onClick={onGetReview}
-        disabled={isLoading}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500"
-      >
-        <SparklesIcon />
-        {isLoading ? 'Getting Feedback...' : 'Get AI Help'}
-      </button>
+      {/* --- E. The Chat Input Form --- */}
+      <form onSubmit={handleSubmit} className="flex gap-2 flex-shrink-0">
+        <input
+          type="text"
+          value={userMessage}
+          onChange={(e) => setUserMessage(e.target.value)}
+          className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          placeholder={isFirstMessage ? "Ask a question about your code..." : "Send a follow-up..."}
+        />
+        <button
+          type="submit"
+          disabled={isLoading || !userMessage.trim()}
+          className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:bg-gray-500"
+        >
+          <SendIcon />
+        </button>
+      </form>
     </div>
   );
 };
