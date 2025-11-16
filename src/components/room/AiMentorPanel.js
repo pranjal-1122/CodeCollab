@@ -1,22 +1,97 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-// --- A. New Icon for Sending a Message ---
-// This is the CORRECT "Paper Airplane" icon
-// --- A. New Icon for Sending a Message ---
+// --- 1. IMPORT YOUR NEW COPY ICON ---
+import copyIcon from '../../assets/copy-icon.png';
+
+// (SendIcon is unchanged)
 const SendIcon = () => (
   <img src="/send.png" alt="Send" className="w-5 h-5" />
 );
 
-// --- B. New Component for a single Chat Message ---
-// This will render both the "user" and "model" (AI) messages
+// --- 2. NEW: ADDED A CHECK ICON FOR FEEDBACK ---
+const CheckIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2}
+    stroke="currentColor"
+    className="w-4 h-4 text-green-400"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M4.5 12.75l6 6 9-13.5"
+    />
+  </svg>
+);
+
+// --- 3. NEW: WRAPPED YOUR ICON IN A COMPONENT ---
+const CopyIcon = () => (
+  <img src={copyIcon} alt="Copy" className="w-4 h-4" />
+);
+
+
+// --- 4. THE CUSTOM COMPONENT FOR RENDERING CODE ---
+const CodeComponent = ({ node, inline, className, children, ...props }) => {
+  const [copied, setCopied] = useState(false);
+  const match = /language-(\w+)/.exec(className || '');
+  const lang = match ? match[1] : 'text';
+  const codeString = String(children).replace(/\n$/, '');
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(codeString);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // For inline code (unchanged)
+  if (inline) {
+    return (
+      <code className="bg-gray-700 text-indigo-300 px-1.5 py-0.5 rounded-md" {...props}>
+        {children}
+      </code>
+    );
+  }
+
+  // For block code
+  return (
+    <div className="relative my-2 bg-gray-800 rounded-lg">
+      {/* --- 5. THE BUTTON NOW USES YOUR ICON --- */}
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 z-10 p-1.5 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-500"
+        title={copied ? "Copied!" : "Copy code"}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </button>
+
+      {/* The Syntax Highlighter (unchanged) */}
+      <SyntaxHighlighter
+        style={vscDarkPlus}
+        language={lang}
+        PreTag="div"
+        className="rounded-lg"
+        {...props}
+      >
+        {codeString}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
+
+
+// --- AiChatMessage component ---
+// (This is unchanged, it just passes the components prop)
 const AiChatMessage = ({ message }) => {
   const { role, parts } = message;
   const isUser = role === 'user';
   
   return (
     <div className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* Icon */}
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-gray-600' : 'bg-indigo-600'}`}>
         {isUser ? (
           <span title="You">🧑</span>
@@ -25,14 +100,19 @@ const AiChatMessage = ({ message }) => {
         )}
       </div>
       
-      {/* Message Bubble */}
-      <div className={`flex flex-col p-3 rounded-xl ${
+      <div className={`flex flex-col p-3 rounded-xl w-full ${
         isUser 
           ? 'bg-gray-700 rounded-tr-none' 
           : 'bg-indigo-900 bg-opacity-50 rounded-tl-none'
       }`}>
-        <div className="prose prose-invert prose-sm text-gray-300">
-          <ReactMarkdown>{parts[0].text}</ReactMarkdown>
+        <div className="text-gray-300">
+          <ReactMarkdown
+            components={{
+              code: CodeComponent, // This tells markdown to use our new component
+            }}
+          >
+            {parts[0].text}
+          </ReactMarkdown>
         </div>
       </div>
     </div>
@@ -40,26 +120,24 @@ const AiChatMessage = ({ message }) => {
 };
 
 
-// --- C. The MAIN COMPONENT, now a full chat UI ---
+// --- The MAIN COMPONENT (No changes from here down) ---
 const AiMentorPanel = ({
-  onSendAiMessage, // Renamed from 'onGetReview'
-  chatHistory,     // Renamed from 'suggestions'
+  onSendAiMessage,
+  chatHistory,
   isLoading,
   error
 }) => {
   const [userMessage, setUserMessage] = useState("");
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to the bottom of the chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, isLoading]); // Scroll when history changes or when AI starts loading
+  }, [chatHistory, isLoading]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!userMessage.trim() || isLoading) return;
 
-    // This is the initial "Get AI Help" message
     const messageToSend = chatHistory.length === 0 
       ? `Get AI Help: ${userMessage}` 
       : userMessage;
@@ -68,20 +146,17 @@ const AiMentorPanel = ({
     setUserMessage("");
   };
 
-  // Determine if this is the very first message
   const isFirstMessage = chatHistory.length === 0;
 
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-xl font-bold mb-4 flex-shrink-0">AI Mentor</h2>
 
-      {/* --- D. The Chat History Area --- */}
       <div className="flex-1 overflow-y-auto mb-4 pr-2 space-y-4">
         {chatHistory.map((msg, index) => (
           <AiChatMessage key={index} message={msg} />
         ))}
         
-        {/* Show a "Thinking..." bubble while loading */}
         {isLoading && (
           <div className="flex items-start gap-2.5">
             <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-indigo-600">
@@ -93,7 +168,6 @@ const AiMentorPanel = ({
           </div>
         )}
         
-        {/* Show an error message in the chat */}
         {error && (
            <div className="flex items-start gap-2.5">
             <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-red-600">
@@ -105,11 +179,9 @@ const AiMentorPanel = ({
           </div>
         )}
 
-        {/* This is the invisible element we scroll to */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* --- E. The Chat Input Form --- */}
       <form onSubmit={handleSubmit} className="flex gap-2 flex-shrink-0">
         <input
           type="text"
