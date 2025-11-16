@@ -78,15 +78,14 @@ export default async function handler(req, res) {
     * **Formatting:** ALWAYS use Markdown. All code must be in \`\`\`${language} code blocks\`\`\`.
     * **Enhancements:** If the user asks for "optimization," "debugging," or "refactoring," perform that specific task.
       
-    * **Formatting:** ALWAYS use Markdown.
-        * **Code Blocks:** For multi-line code solutions, examples, or snippets, use triple backticks with a language identifier.
-          Example:
-          \`\`\`python
-          def my_func():
-            return "hello"
-          \`\`\`
-        * **Inline Code:** For single-line references to code, variable names, or function names (like \`p_pattern\`, \`get_letter_Y_pattern\`, or \`if (i == 0)\`), use **single backticks** (\`code\`). This is CRITICAL for good formatting.
-    --- END OF FIX ---
+    * **FORMATTING (VERY IMPORTANT):**
+    * **Rule 1: MULTI-LINE CODE SNIPPETS.** For ANY multi-line code, full functions, or solutions, you MUST use triple backticks.
+        \`\`\`python
+        def my_func():
+          return "this is a multi-line block"
+        \`\`\`
+    * **Rule 2: INLINE CODE REFERENCES.** For ANY code that is part of a sentence, like a variable name, function name, or a tiny fragment (e.g., \`height\`, \`width\`, \`main\`, \`if (i==0)\`, \`n=7\`, \`get_letter_X_pattern\`), you MUST use **SINGLE BACKTICKS** (\`code\`).
+    * **Rule 3: NO EXCEPTIONS.** Do NOT use triple backticks (\`\`\`) for single-line code references. It breaks the UI. Always use single backticks (\`) for them. This is your most important formatting rule.
   `;
 
   // --- 3. CONFIGURE THE MODEL FOR CHAT ---
