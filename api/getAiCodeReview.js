@@ -77,6 +77,16 @@ export default async function handler(req, res) {
     * **Context:** Use the provided code and the chat history to understand the user's full request.
     * **Formatting:** ALWAYS use Markdown. All code must be in \`\`\`${language} code blocks\`\`\`.
     * **Enhancements:** If the user asks for "optimization," "debugging," or "refactoring," perform that specific task.
+      
+    * **Formatting:** ALWAYS use Markdown.
+        * **Code Blocks:** For multi-line code solutions, examples, or snippets, use triple backticks with a language identifier.
+          Example:
+          \`\`\`python
+          def my_func():
+            return "hello"
+          \`\`\`
+        * **Inline Code:** For single-line references to code, variable names, or function names (like \`p_pattern\`, \`get_letter_Y_pattern\`, or \`if (i == 0)\`), use **single backticks** (\`code\`). This is CRITICAL for good formatting.
+    --- END OF FIX ---
   `;
 
   // --- 3. CONFIGURE THE MODEL FOR CHAT ---
