@@ -3,9 +3,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { firestore, db } from '../../services/firebase';
 // --- 1. IMPORT THE NEW FIRESTORE FUNCTIONS ---
-import { doc, setDoc, serverTimestamp, collection, query, where, getCountFromServer } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, set } from 'firebase/database';
 import { nanoid } from 'nanoid';
+
+
+const getStarterCode = (lang, roomName, fileName) => {
+  if (lang.toLowerCase() === 'python') {
+    return `# Welcome to ${roomName}!\n# Start coding in ${fileName}`;
+  }
+  // Default for JS, Java, C++, etc.
+  return `// Welcome to ${roomName}!\n// Start coding in ${fileName}`;
+}; 
 
 // Helper to get file extension (no change)
 const getFileExtension = (lang) => {
@@ -26,7 +35,7 @@ const TabCreateRoom = () => {
   const [roomName, setRoomName] = useState("");
   const [mode, setMode] = useState("Free Code");
   const [language, setLanguage] = useState(userProfile.preferredLanguage || 'Python');
-  const [privacy, setPrivacy] =useState("Public");
+  const [privacy, setPrivacy] = useState("Public");
   const [maxParticipants, setMaxParticipants] = useState(2);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,14 +50,19 @@ const TabCreateRoom = () => {
     setError("");
 
     try {
-      // --- 2. ADDED ROOM LIMIT CHECK ---
+      // --- 1. UPDATED ROOM LIMIT CHECK ---
       const roomsRef = collection(firestore, 'rooms');
-      const q = query(roomsRef, where('hostId', '==', currentUser.uid));
-      const countSnapshot = await getCountFromServer(q);
-      const roomCount = countSnapshot.data().count;
 
-      if (roomCount >= 5) {
-        setError("You have reached the 5-room limit. Please delete an old room from the 'My Rooms' tab.");
+      // Query ALL rooms by this user
+      const q = query(roomsRef, where('hostId', '==', currentUser.uid));
+      const querySnapshot = await getDocs(q);
+
+      // Filter in memory: Only count rooms that are NOT 'Practice'
+      // This is safer than a complex Firestore index for now.
+      const activeRooms = querySnapshot.docs.filter(doc => doc.data().mode !== 'Practice');
+
+      if (activeRooms.length >= 5) {
+        setError("You have reached the 5-room limit (excluding Practice rooms). Please delete an old room.");
         setLoading(false);
         return;
       }
@@ -63,11 +77,11 @@ const TabCreateRoom = () => {
       const initialFiles = {
         [defaultFileId]: {
           name: defaultFileName,
-          code: `// Welcome to ${roomName}!\n// Start coding in ${defaultFileName}`,
+          code: getStarterCode(language, roomName, defaultFileName),
           output: 'Click "Run Code" to see output...'
         }
       };
-      
+
       const initialPresence = {
         [currentUser.uid]: {
           activeFileId: defaultFileId
@@ -91,7 +105,7 @@ const TabCreateRoom = () => {
         ],
         createdAt: serverTimestamp(),
       });
-      
+
       // 2. Create the Realtime Database structure (no change)
       const rtdbRoomRef = ref(db, `rooms/${newRoomId}`);
       await set(rtdbRoomRef, {
@@ -132,16 +146,14 @@ const TabCreateRoom = () => {
           <label className="block text-sm font-medium text-gray-300">Select Mode</label>
           <div className="flex gap-4 mt-2">
             <button type="button" onClick={() => setMode('Free Code')}
-              className={`flex-1 p-4 rounded-lg transition-all ${
-                mode === 'Free Code' ? 'bg-indigo-600 ring-2 ring-white' : 'bg-gray-700 hover:bg-gray-600'
-              }`}>
+              className={`flex-1 p-4 rounded-lg transition-all ${mode === 'Free Code' ? 'bg-indigo-600 ring-2 ring-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`}>
               <h3 className="font-bold text-lg">Free Code Mode</h3>
               <p className="text-sm text-gray-300">Collaborative editor, practice together.</p>
             </button>
             <button type="button" onClick={() => setMode('Challenge')}
-              className={`flex-1 p-4 rounded-lg transition-all ${
-                mode === 'Challenge' ? 'bg-purple-600 ring-2 ring-white' : 'bg-gray-700 hover:bg-gray-600'
-              }`}>
+              className={`flex-1 p-4 rounded-lg transition-all ${mode === 'Challenge' ? 'bg-purple-600 ring-2 ring-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`}>
               <h3 className="font-bold text-lg">Challenge Mode</h3>
               <p className="text-sm text-gray-300">Competitive coding battle!</p>
             </button>
@@ -181,7 +193,7 @@ const TabCreateRoom = () => {
             </select>
           </div>
         </div>
-        
+
         {error && <p className="text-red-400 text-center">{error}</p>}
 
         {/* Submit Button (unchanged) */}

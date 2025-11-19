@@ -30,7 +30,14 @@ const TabMyRooms = () => {
         const querySnapshot = await getDocs(q);
         const rooms = [];
         querySnapshot.forEach((doc) => {
-          rooms.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          
+          // --- THIS IS THE UPDATE ---
+          // We exclude "Practice" rooms so they don't clutter the dashboard
+          if (data.mode !== 'Practice') {
+            rooms.push({ id: doc.id, ...data });
+          }         
+          
         });
 
         setMyRooms(rooms);

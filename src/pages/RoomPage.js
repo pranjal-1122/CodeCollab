@@ -18,15 +18,13 @@ const RoomPage = () => {
     loading: roomLoading, error, 
     updateFileCode, updateFileOutput, updatePresence, 
     addNewFile, removeFile, sendChatMessage
-    // --- THIS IS THE FIX ---
-  } = useRoom(roomId, currentUser); // Pass currentUser here
+  } = useRoom(roomId, currentUser); 
 
   const loading = authLoading || roomLoading;
   const onDisconnectRef = useRef(null);
   const hasLeftRef = useRef(false);
 
-  // --- NO CHANGES to useEffects ---
-  // (useEffect for join/leave)
+  // (useEffect for join/leave - NO CHANGE)
   useEffect(() => {
     if (loading || !room || !currentUser || !userProfile || !files || Object.keys(files).length === 0) {
       return;
@@ -36,6 +34,7 @@ const RoomPage = () => {
     const roomDocRef = doc(firestore, 'rooms', roomId);
     const userPresenceRef = ref(db, `rooms/${roomId}/presence/${currentUserId}`);
 
+    // Add participant if not exists
     const isParticipantInFirestore = room.participants.includes(currentUserId);
     if (!isParticipantInFirestore) {
       const newParticipantProfile = {
@@ -49,6 +48,7 @@ const RoomPage = () => {
       }).catch(err => console.error("Error adding participant:", err));
     }
     
+    // Set Presence
     onValue(userPresenceRef, (snapshot) => {
       if (onDisconnectRef.current === null) {
         const firstFileId = Object.keys(files)[0];
@@ -62,6 +62,7 @@ const RoomPage = () => {
       }
     }, { onlyOnce: true });
     
+    // Cleanup function
     const leaveRoom = () => {
       if (hasLeftRef.current) return;
       hasLeftRef.current = true;
@@ -71,15 +72,19 @@ const RoomPage = () => {
       }
       remove(userPresenceRef); 
       
-      const profileToRemove = {
-        uid: currentUserId,
-        username: userProfile.username,
-        avatar: userProfile.avatar || null,
-      };
-      updateDoc(roomDocRef, {
-        participants: arrayRemove(currentUserId),
-        participantProfiles: arrayRemove(profileToRemove),
-      }).catch(err => console.error("Error removing participant:", err));
+      // Only remove from participants list if it's NOT a Practice room
+      // (Practice rooms persist the user so they can resume later)
+      if (room.mode !== 'Practice') {
+        const profileToRemove = {
+          uid: currentUserId,
+          username: userProfile.username,
+          avatar: userProfile.avatar || null,
+        };
+        updateDoc(roomDocRef, {
+          participants: arrayRemove(currentUserId),
+          participantProfiles: arrayRemove(profileToRemove),
+        }).catch(err => console.error("Error removing participant:", err));
+      }
     };
 
     return () => {
@@ -88,11 +93,13 @@ const RoomPage = () => {
     
   }, [loading, room, files, currentUser, userProfile, roomId]); 
 
-  // (useEffect for host cleanup)
+  // (useEffect for host cleanup - NO CHANGE)
   useEffect(() => {
     if (loading || !room || !presence || currentUser.uid !== room.hostId) {
       return;
     }
+    // We don't run cleanup for Practice rooms to avoid deleting the solo user accidentally
+    if (room.mode === 'Practice') return;
 
     const roomDocRef = doc(firestore, 'rooms', roomId);
 
@@ -113,7 +120,6 @@ const RoomPage = () => {
     });
 
   }, [presence, room, loading, currentUser, roomId]);
-  // --- END of useEffects ---
 
 
   if (loading) {
@@ -129,7 +135,7 @@ const RoomPage = () => {
     return <Navigate to="/dashboard" />;
   }
 
-  // --- NO CHANGE to render logic ---
+  // --- ROUTING LOGIC ---
   if (room.mode === 'Free Code') {
     return (
       <FreeCodeRoom 
@@ -141,13 +147,16 @@ const RoomPage = () => {
     );
   }
 
-  if (room.mode === 'Challenge') {
+  // --- THIS IS THE UPDATE ---
+  // We now treat 'Practice' the same as 'Challenge' for routing purposes
+  if (room.mode === 'Challenge' || room.mode === 'Practice') {
     return (
       <ChallengeRoom 
         room={room} 
       />
     );
   }
+  // --- END OF UPDATE ---
 
   // Fallback for any other mode
   return (

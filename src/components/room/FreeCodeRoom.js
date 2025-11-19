@@ -9,6 +9,11 @@ import OutputPanel from './OutputPanel';
 
 import { useVoiceChat } from '../../hooks/useVoiceChat';
 
+const getMonacoLanguage = (lang) => {
+  const lower = lang?.toLowerCase();
+  if (lower === 'c++' || lower === 'cpp') return 'cpp';
+  return lower;
+};
 
 const useDebounce = (callback, delay) => {
   const [timeoutId, setTimeoutId] = useState(null);
@@ -256,7 +261,7 @@ const FreeCodeRoom = ({
                     <Editor
                       height="100%"
                       theme="vs-dark"
-                      language={room.language.toLowerCase()}
+                      language={getMonacoLanguage(room.language)}
                       value={localCode}
                       onChange={handleEditorChange}
                       onMount={handleEditorDidMount}
