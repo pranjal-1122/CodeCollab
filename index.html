@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Moment Built Just for You, Shraddha</title>
+    <!-- Load Tailwind CSS and Lora + Dancing Script Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Dancing+Script:wght@400..700&display=swap"
+        rel="stylesheet">
+
+    <script>
+        // Custom Tailwind Configuration (Blue/Pink/Ivory)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-blue': '#4A90E2',
+                        'soft-pink': '#F8A1A1',
+                        'ivory': '#F7F4EA',
+                    },
+                    fontFamily: {
+                        serif: ['Lora', 'serif'],
+                        script: ['Dancing Script', 'cursive'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-glow': 'glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'flicker': 'flicker 1.5s infinite alternate',
+                        'text-fade': 'text-fade 5s infinite',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base styles */
+        body {
+            background-color: #F7F4EA;
+            /* Ivory */
+        }
+
+        /* 1. Glowing Button Animation */
+        #proceed-button {
+            box-shadow: 0 0 15px rgba(248, 161, 161, 0.5);
+            animation: glow 3s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px rgba(248, 161, 161, 0.5), 0 0 20px rgba(248, 161, 161, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 20px rgba(248, 161, 161, 0.8), 0 0 40px rgba(248, 161, 161, 0.5);
+            }
+        }
+
+        /* 2. Candle Flicker Animation */
+        @keyframes flicker {
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px #F8A1A1, 0 0 15px #F8A1A1;
+            }
+
+            50% {
+                box-shadow: 0 0 3px #F8A1A1, 0 0 10px #F8A1A1;
+            }
+        }
+
+        /* 3. Particle Burst for Wish Page */
+        .particle {
+            position: fixed;
+            width: 5px;
+            height: 5px;
+            background-color: #F8A1A1;
+            /* Soft Pink */
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            animation: fall-particle 4s linear forwards;
+            z-index: 50;
+        }
+
+        @keyframes fall-particle {
+            0% {
+                transform: translateY(-50px) rotate(0deg);
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: translateY(100vh) rotate(1080deg);
+                opacity: 0;
+            }
+        }
+
+        /* 4. Sound Wave Animation (CSS Motif for Album Page) */
+        .sound-wave {
+            width: 6px;
+            height: 25px;
+            background: #F8A1A1;
+            margin: 0 3px;
+            border-radius: 2px;
+            animation: waveform 1.5s infinite alternate;
+            display: inline-block;
+        }
+
+        .sound-wave:nth-child(2) {
+            animation-delay: 0.1s;
+            height: 18px;
+        }
+
+        .sound-wave:nth-child(3) {
+            animation-delay: 0.2s;
+            height: 35px;
+        }
+
+        .sound-wave:nth-child(4) {
+            animation-delay: 0.3s;
+            height: 15px;
+        }
+
+        .sound-wave:nth-child(5) {
+            animation-delay: 0.4s;
+            height: 30px;
+        }
+
+        @keyframes waveform {
+            to {
+                height: 10px;
+                background: #4A90E2;
+            }
+        }
+
+        /* 5. Scroll Signature Effect */
+        #signature-footer {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s, transform 0.8s;
+        }
+
+        #signature-footer.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 6. Memory Highlight */
+        .song-item:hover .song-title {
+            color: #F8A1A1;
+        }
+
+        /* 7. Cake Candle Styles */
+        .candle {
+            position: absolute;
+            bottom: 100%;
+            /* Relative to the top of the cake tier */
+            width: 8px;
+            height: 30px;
+            background: #F7F4EA;
+            /* Ivory candle color */
+            border-radius: 2px;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+            z-index: 25;
+            /* Ensure candles are above the cake tiers */
+        }
+
+        .flame {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 15px;
+            background: orange;
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            box-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700;
+            animation: flicker 0.8s infinite alternate;
+            transition: opacity 0.5s;
+        }
+
+        /* 8. Text Cycling Fade Effect */
+        @keyframes text-fade {
+            0% {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            10% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            90% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+        }
+    </style>
+</head>
+
+<body class="font-serif bg-ivory min-h-screen flex flex-col items-center justify-center p-4">
+
+    <audio id="bg-music" loop>
+        <source src="./background.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Main Content Container -->
+    <div id="main-card"
+        class="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-6 sm:p-12 border-4 border-primary-blue/50 transition-all duration-700 overflow-hidden relative">
+
+        <!-- ======================================================= --><!-- VIEW 1: LANDING PAGE (DEFAULT) --><!-- ======================================================= -->
+        <div id="landing-page" class="text-center transition-opacity duration-1000">
+            <header class="mb-10">
+                <p id="date-reveal"
+                    class="text-xs text-primary-blue/80 mb-6 opacity-0 transition-opacity duration-1000">
+                    <!-- Date is set by JavaScript -->
+                </p>
+                <h1 class="text-5xl sm:text-7xl font-script font-bold text-primary-blue mb-6 tracking-wider">
+                    Happy Birthday, cutie pie!
+                </h1>
+                <h2 id="typing-text"
+                    class="text-xl sm:text-2xl text-soft-pink/90 h-10 font-light italic transition-opacity duration-500 mb-12">
+                    <!-- Text inserted by JavaScript -->
+                </h2>
+            </header>
+
+            <!-- Cake and Candle Surprise - HIGH QUALITY REDESIGN -->
+            <div id="cake-area" class="flex flex-col items-center mt-20 mb-8">
+                <div class="relative flex flex-col items-center">
+
+                    <!-- Top Tier (Smallest, Blue) - Holds Candles -->
+                    <div class="relative w-24 h-8 bg-primary-blue rounded-t-lg shadow-md mb-[-2px] z-20">
+                        <!-- Candles positioned relative to this tier -->
+                        <div id="candle-1" class="candle left-1/4 transform -translate-x-1/2">
+                            <div class="flame" data-flame="true"></div>
+                        </div>
+                        <div id="candle-2" class="candle left-1/2 transform -translate-x-1/2" style="height: 35px;">
+                            <div class="flame" data-flame="true"></div>
+                        </div>
+                        <div id="candle-3" class="candle right-1/4 transform translate-x-1/2">
+                            <div class="flame" data-flame="true"></div>
+                        </div>
+
+                    </div>
+
+                    <!-- Middle Tier (Medium, Pink) -->
+                    <div class="w-32 h-10 bg-soft-pink rounded-lg shadow-lg mb-[-2px] z-10">
+
+                    </div>
+
+                    <!-- Bottom Tier (Largest, Blue) -->
+                    <div class="w-48 h-12 bg-primary-blue rounded-lg shadow-xl z-0">
+
+                    </div>
+
+                    <!-- Plate/Stand -->
+                    <div class="w-60 h-2 bg-gray-300 rounded-lg mt-1 shadow-inner"></div>
+
+                </div>
+
+                <button id="blow-candle-button"
+                    class="mt-8 px-6 py-3 bg-primary-blue text-white font-bold rounded-full shadow-md hover:bg-primary-blue/90 transition-colors duration-300">
+                    Make a Wish and Blow! 🌬
+                </button>
+            </div>
+
+            <div class="space-y-6">
+                <p class="text-lg text-primary-blue max-w-lg mx-auto mb-8">
+                    Welcome to a moment built just for you, my soulmate. This is my dedication.
+                </p>
+
+                <!-- Hidden button, enabled after blowing candles --><button id="proceed-button"
+                    class="w-full sm:w-auto px-12 py-5 bg-soft-pink text-primary-blue font-bold text-xl rounded-full shadow-lg opacity-0 pointer-events-none transform hover:scale-105 transition-all duration-300">
+                    Proceed to Album 🎧
+                </button>
+            </div>
+        </div>
+
+        <!-- ======================================================= --><!-- VIEW 2: ALBUM PAGE (HIDDEN) --><!-- ======================================================= -->
+        <div id="album-page" class="hidden transition-opacity duration-1000 opacity-0">
+            <header class="text-center mb-8">
+                <div class="flex justify-center mb-4">
+                    <div class="sound-wave"></div>
+                    <div class="sound-wave"></div>
+                    <div class="sound-wave"></div>
+                    <div class="sound-wave"></div>
+                    <div class="sound-wave"></div>
+                </div>
+                <h2 class="text-4xl sm:text-5xl font-script text-primary-blue mb-4">
+                    Our Love's Symphony: A Dedication in Notes
+                </h2>
+                <p class="text-md text-primary-blue/90 italic max-w-xl mx-auto">
+                    These are the echoes of every laugh, every tender moment, and every silent promise we've shared. Let
+                    the rhythm remind you of the beautiful life we are building, note by precious note.
+                </p>
+            </header>
+
+            <div class="space-y-6 text-left max-w-xl mx-auto pt-6">
+
+                <!-- 1. Suraj Hua Maddham -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        1: Suraj Hua Maddham</p>
+                    <p class="text-sm text-gray-600 mb-3">The warm feeling of waking up next to you, every sunrise is
+                        brighter.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./suraj_hua_maddham.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 2. Sajde Kiye Hai Lakho -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        2: Sajde Kiye Hai Lakho</p>
+                    <p class="text-sm text-gray-600 mb-3">Bowing down to the universe for bringing you into my life.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Sajde_kiye_hain.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 3. Perfect -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        3: Perfect</p>
+                    <p class="text-sm text-gray-600 mb-3">Because every flaw you have is exactly what makes you perfect
+                        to me.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Perfect.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 4. Kabhi Jo Badal Barse -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        4: Kabhi Jo Badal Barse</p>
+                    <p class="text-sm text-gray-600 mb-3">That comforting feeling of being indoors, cuddled up on a
+                        rainy day.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Kabhi_Jo_Badal_Barse.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 5. Mene Tera Naam Dil rakh diya -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        5: Mene Tera Naam Dil rakh diya</p>
+                    <p class="text-sm text-gray-600 mb-3">My heart has always belonged to you, even before I knew it.
+                    </p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Maine_Tera_Naam_Dil_Rakh_DiyaSlowed_Reverb_Song_Aesthetic_StatusLove.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 6. Soch Na Sake -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        6: Soch Na Sake</p>
+                    <p class="text-sm text-gray-600 mb-3">The thought of a life without you is impossible to imagine.
+                    </p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Soch_Na_Sake_WhatsApp_Status_Tere_Liye_Duniya_chod_di_hai_WhatsApp.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 7. Aankhon Se Batana -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        7: Aankhon Se Batana</p>
+                    <p class="text-sm text-gray-600 mb-3">Our silent conversations, where a single glance says
+                        everything.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Aakhon_Se.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 8. Itni Si Baat Hain -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        8: Itni Si Baat Hain</p>
+                    <p class="text-sm text-gray-600 mb-3">All I want is to be with you, forever. It's as simple as that.
+                    </p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Itni_Si.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 9. Aashiq Tera -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        9: Aashiq Tera</p>
+                    <p class="text-sm text-gray-600 mb-3">My eternal promise to be your devoted admirer and lover.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Aashiq_Tera_Happy_Bhag_Jayegi_Romantic_Love_Status_Sohail_Sen_Altamash.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 10. Sang Rahiyo -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        10: Sang Rahiyo</p>
+                    <p class="text-sm text-gray-600 mb-3">A promise to stay, through every high and every low.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Aage_Rahiyo_Na_Peeche_Rahiyo_Sang_Rahiyo_editing_video_A_BEE_GAMING.mp3" type="audio/mpeg">
+                        Your browser does support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 11. Dil Tu Jaan Tu -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        11: Dil Tu Jaan Tu</p>
+                    <p class="text-sm text-gray-600 mb-3">You are the life and soul of my existence.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Dil_Tu_Jaan.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 12. Mand -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        12: Mand</p>
+                    <p class="text-sm text-gray-600 mb-3">The serene, peaceful calm you bring to my chaotic world.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Maand.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 13. Ankhon Mein Teri -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        13: Ankhon Mein Teri</p>
+                    <p class="text-sm text-gray-600 mb-3">The moment I first saw you, and everything else froze.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Ajab_Si.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 14. Zaalima -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        14: Zaalima</p>
+                    <p class="text-sm text-gray-600 mb-3">Your beautiful magic that captivated me completely.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Zaalima_fullscreen_whatsapp_status_Arijit_Singh_Songs_Shahrukh_Khan.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <!-- 15. Tere sang Yara -->
+                <div
+                    class="song-item p-4 rounded-xl border border-primary-blue/20 shadow-sm transition-all duration-300 hover:bg-ivory/80 cursor-pointer">
+                    <p class="song-title font-bold text-lg text-primary-blue mb-1 transition-colors duration-300">Track
+                        15: Tere sang Yara</p>
+                    <p class="text-sm text-gray-600 mb-3">Finding my greatest joy and adventure, simply by walking
+                        beside you.</p>
+                    <audio controls class="w-full rounded-lg">
+                        <source src="./Tere_Sang.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+
+                <p id="hidden-verse"
+                    class="text-center text-md font-bold text-soft-pink opacity-0 transition-opacity duration-2000 mt-4">
+                    "Tujhse hi din hota hai, surmayi shaam aati hai..."
+                </p>
+
+            </div>
+
+            <button id="wish-button"
+                class="mt-10 px-8 py-3 bg-primary-blue text-white font-bold rounded-full shadow-lg hover:bg-primary-blue/90 transform hover:scale-105 transition-all duration-300">
+                Read My Birthday Wish 🎂
+            </button>
+        </div>
+
+        <!-- ======================================================= --><!-- VIEW 3: BIRTHDAY WISH PAGE (HIDDEN) --><!-- ======================================================= -->
+        <div id="wish-page" class="hidden transition-opacity duration-1000 opacity-0 relative">
+            <header class="text-center mb-6">
+                <h2 class="text-5xl sm:text-6xl font-script text-soft-pink mb-2">
+                    Happy Birthday Shraddha!
+                </h2>
+                <h3 class="text-xl sm:text-2xl font-serif font-light text-primary-blue/90 italic">
+                    For the Only Person Who Holds the Key to My Soul.
+                </h3>
+            </header>
+
+            <!-- Scrollable Area for the Letter -->
+            <div id="scroll-area"
+                class="max-h-[500px] overflow-y-auto p-4 rounded-lg bg-ivory/70 border border-primary-blue/20 shadow-inner">
+                <p class="text-primary-blue text-xl font-semibold leading-relaxed text-center mb-4">
+                    My darling, as the stars align for your birthday, I want to tell you that you are the most exquisite
+                    chapter in my life. You bring wisdom, unwavering kindness, and such vibrant light to my world. Every
+                    memory we create is a treasure I hold close. I look forward to countless more years of quiet
+                    evenings, epic adventures, and simply being near you. This gift is just a small dedication to the
+                    extraordinary love we share, a love that deepens and strengthens with every turn of the calendar.
+                </p>
+                <div class="h-10"></div> <!-- Small spacing below the main message -->
+                <p class="text-center text-sm text-gray-500 italic">
+                    Scroll down for one final surprise...
+                </p>
+                <div class="h-64"></div> <!-- Padding to ensure scroll detection works easily -->
+            </div>
+
+            <!-- Scroll Surprise / Signature Footer -->
+            <footer id="signature-footer" class="mt-8 text-center pt-4">
+                <p class="text-primary-blue text-3xl font-script font-bold">
+                    Eternally and Completely Yours,
+                </p>
+                <p class="text-primary-blue text-xl mt-1">Kulfi</p>
+            </footer>
+
+            <!-- Final Thought Box (Hidden Modal) -->
+            <div id="final-thought-box"
+                class="fixed inset-0 bg-primary-blue bg-opacity-70 hidden items-center justify-center p-4 z-50 transition-opacity duration-300">
+                <div
+                    class="bg-soft-pink text-primary-blue p-8 rounded-xl shadow-2xl text-center border-4 border-ivory transform scale-100 transition-transform duration-500">
+                    <h4 class="text-xl font-bold mb-2">One Last Thought...</h4>
+                    <p class="text-2xl font-script">The greatest gift is simply you.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // =======================================================
+        // CONSTANTS & INITIALIZATION
+        // =======================================================
+        const views = {
+            landing: document.getElementById('landing-page'),
+            album: document.getElementById('album-page'),
+            wish: document.getElementById('wish-page'),
+        };
+        const proceedButton = document.getElementById('proceed-button');
+        const wishButton = document.getElementById('wish-button');
+        const blowCandleButton = document.getElementById('blow-candle-button');
+        const typingElement = document.getElementById('typing-text');
+        const dateReveal = document.getElementById('date-reveal');
+        const hiddenVerse = document.getElementById('hidden-verse');
+        const scrollArea = document.getElementById('scroll-area');
+        const signatureFooter = document.getElementById('signature-footer');
+        const finalThoughtBox = document.getElementById('final-thought-box');
+        const flames = document.querySelectorAll('.flame');
+
+        // Audio Elements
+        const bgMusic = document.getElementById('bg-music');
+        const songElements = document.querySelectorAll('.song-item audio'); 
+
+        const rotatingQuotes = [
+            "The World Paused Today to Celebrate Your Light.",
+            "My love, you make every ordinary day extraordinary.",
+            "Our story continues here, chapter by beautiful chapter.",
+            "You are the most precious gift I have ever received.",
+            "My heart belongs to you, today and forever.",
+            "Welcome to a moment built just for you, my soulmate."
+        ];
+        
+        // =======================================================
+        // AUDIO LOGIC (CLICK ANYWHERE TO PLAY)
+        // =======================================================
+        
+        function initAudio() {
+            // 1. Set initial volume
+            bgMusic.volume = 0.5;
+
+            // 2. The "Magic" Listener: Starts music on the VERY FIRST click anywhere
+            const startMusic = () => {
+                if (bgMusic.paused) {
+                    bgMusic.play().catch(e => console.log("Audio waiting for interaction"));
+                }
+                // Remove the listener so it doesn't fire again unnecessarily
+                document.removeEventListener('click', startMusic);
+            };
+
+            document.addEventListener('click', startMusic);
+
+            // 3. Handle "Ducking" (Lower volume when songs play)
+            songElements.forEach(song => {
+                song.addEventListener('play', () => {
+                    // Stop other individual songs
+                    songElements.forEach(s => { if(s !== song) s.pause(); });
+                    
+                    // Lower background music volume
+                    bgMusic.volume = 0.1; 
+                });
+
+                song.addEventListener('pause', restoreBgVolume);
+                song.addEventListener('ended', restoreBgVolume);
+            });
+        }
+
+        function restoreBgVolume() {
+            // Only restore if NO other songs are playing
+            let isAnySongPlaying = false;
+            songElements.forEach(s => { if (!s.paused && !s.ended) isAnySongPlaying = true; });
+
+            if (!isAnySongPlaying) {
+                bgMusic.volume = 0.5; 
+            }
+        }
+
+        // =======================================================
+        // VIEW MANAGEMENT
+        // =======================================================
+        let currentView = 'landing';
+        let quoteInterval;
+
+        function switchView(targetView) {
+            clearInterval(quoteInterval); 
+            views[currentView].classList.add('hidden', 'opacity-0');
+            
+            setTimeout(() => {
+                views[currentView].classList.remove('flex'); 
+                currentView = targetView;
+                views[currentView].classList.remove('hidden');
+                
+                setTimeout(() => {
+                    views[currentView].classList.remove('opacity-0');
+                    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+
+                    if (targetView === 'album') {
+                        setTimeout(() => {
+                            hiddenVerse.classList.remove('opacity-0'); 
+                        }, 1000);
+                    } else if (targetView === 'wish') {
+                        createParticles(100); 
+                        scrollArea.addEventListener('scroll', checkScrollPosition);
+                        
+                        setTimeout(() => {
+                            showFinalThought(); 
+                        }, 10000); 
+                    }
+                }, 50);
+            }, 700);
+        }
+
+        // =======================================================
+        // LANDING PAGE SURPRISES
+        // =======================================================
+
+        // Fix for Bug 1: Timer Management
+        let typingTimer = null; 
+
+        function startCyclingQuotes(quotes) {
+            let quoteIndex = 0;
+            const typeQuote = (text) => {
+                if (typingTimer) clearTimeout(typingTimer); 
+
+                let i = 0;
+                typingElement.textContent = '';
+                const speed = 70; 
+
+                function type() {
+                    if (i < text.length) {
+                        typingElement.textContent += text.charAt(i);
+                        i++;
+                        typingTimer = setTimeout(type, speed);
+                    }
+                }
+                type();
+            };
+
+            const cycle = () => {
+                typeQuote(quotes[quoteIndex]);
+                quoteIndex = (quoteIndex + 1) % quotes.length;
+            };
+
+            cycle(); 
+            quoteInterval = setInterval(cycle, 6000); 
+        }
+
+        // Fix for Bug 2: Date Formatting
+        function dateRevealFunction() {
+            const now = new Date();
+            const customDate = new Date(now.getFullYear(), 10, 20); 
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = customDate.toLocaleDateString('en-US', options);
+            
+            dateReveal.textContent = `Today is ${formattedDate}: The Best Day`;
+            
+            dateReveal.classList.remove('opacity-0');
+            setTimeout(() => {
+                dateReveal.classList.add('opacity-0');
+            }, 4000); 
+        }
+
+        function blowCandles() {
+            flames.forEach(flame => {
+                flame.style.opacity = '0';
+                flame.style.boxShadow = 'none';
+                flame.style.animation = 'none';
+            });
+            blowCandleButton.disabled = true;
+            blowCandleButton.textContent = 'Candles Blown! ･ｳ';
+            blowCandleButton.classList.remove('bg-primary-blue');
+            blowCandleButton.classList.add('bg-soft-pink', 'text-primary-blue');
+            
+            proceedButton.classList.remove('opacity-0', 'pointer-events-none');
+            proceedButton.classList.add('opacity-100');
+        }
+
+        // =======================================================
+        // WISH PAGE SURPRISES
+        // =======================================================
+
+        function createParticles(count) {
+            const colors = ['#F8A1A1', '#4A90E2', '#FFD700']; 
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                
+                particle.style.left = (Math.random() * 100) + 'vw';
+                particle.style.top = (Math.random() * -50) + 'px';
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.animationDuration = (Math.random() * 3 + 4) + 's';
+                particle.style.animationDelay = (Math.random() * 2) + 's';
+                
+                document.body.appendChild(particle);
+
+                particle.addEventListener('animationend', () => {
+                    particle.remove();
+                });
+            }
+        }
+
+        function checkScrollPosition() {
+            const isNearBottom = scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop < 50;
+            if (isNearBottom) { 
+                signatureFooter.classList.add('active');
+                scrollArea.removeEventListener('scroll', checkScrollPosition);
+            }
+        }
+
+        function showFinalThought() {
+            finalThoughtBox.classList.remove('hidden');
+            finalThoughtBox.classList.add('flex', 'opacity-0');
+            setTimeout(() => {
+                finalThoughtBox.classList.remove('opacity-0'); 
+            }, 10);
+            
+            finalThoughtBox.addEventListener('click', () => {
+                 finalThoughtBox.classList.add('opacity-0');
+                 setTimeout(() => {
+                    finalThoughtBox.classList.add('hidden');
+                    finalThoughtBox.classList.remove('flex');
+                 }, 300); 
+            }, { once: true });
+        }
+
+        // =======================================================
+        // EVENT LISTENERS & STARTUP
+        // =======================================================
+        blowCandleButton.addEventListener('click', blowCandles);
+
+        proceedButton.addEventListener('click', () => {
+            switchView('album');
+        });
+
+        wishButton.addEventListener('click', () => {
+            switchView('wish');
+        });
+        
+        window.onload = () => {
+            startCyclingQuotes(rotatingQuotes);
+            dateRevealFunction();
+            initAudio(); // Initialize the "Click Anywhere" audio logic
+            
+            console.log("Website loaded. Click anywhere to start music.");
+        };
+
+    </script>
+</body>
+
+</html>
